@@ -62,11 +62,10 @@ export function assetRoot(): string {
   }
 
   // 3. Dev / source run — resolve the repo `packages/` root relative to this
-  //    module. This module lives at packages/kernel/platform-io/src/lib/
-  //    (R1 抽出 platform-io 后比原 packages/cli/src/lib 多一层 kernel/),
-  //    so `packages/` is FOUR levels up. 解析到的绝对路径与迁移前一致,
-  //    端点行为不变(R1 路由表 diff + smoke 验证)。
-  cached = resolve(meta, '..', '..', '..', '..');
+  //    module. This module lives at packages/platform-io/src/lib/ (the
+  //    cli-dependency-closure refactor removed the former kernel/ layer), so
+  //    `packages/` is THREE levels up (lib → src → platform-io → packages).
+  cached = resolve(meta, '..', '..', '..');
   return cached;
 }
 
