@@ -1,0 +1,26 @@
+{
+  "name": "@forgeax/platform-io",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "后端 L1 平台 IO 基建:files/assets/projects/fs/logs/prefs/version/changelog/boot-splash 等纯 IO router + safe-path/io/asset-root 工具。零 agent/session/llm 依赖,可被 cli(后L2)/server(后L3)/editor(前L2)直接复用。R1 从 forgeax-cli 抽出。",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "lint:boundaries": "depcruise --config .dependency-cruiser.cjs src || true"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.13",
+    "@types/node": "^22.0.0",
+    "dependency-cruiser": "^17.4.3",
+    "typescript": "^5.6.3"
+  }
+}
