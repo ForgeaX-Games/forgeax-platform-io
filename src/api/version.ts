@@ -86,7 +86,7 @@ function fromDistFile(): VersionInfo | null {
   // scripts/run.sh writes this on every boot. dist/ is package-local
   // (packages/server/dist/version.json).
   const candidates = [
-    resolve(import.meta.dir ?? __dirname, '..', '..', 'dist', 'version.json'),
+    resolve(import.meta.dirname ?? __dirname, '..', '..', 'dist', 'version.json'),
     resolve(process.cwd(), 'dist', 'version.json'),
   ];
   for (const p of candidates) {

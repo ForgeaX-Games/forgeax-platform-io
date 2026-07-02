@@ -6,8 +6,8 @@
  *
  * Why this exists (desktop packaging):
  *   In dev / source runs, asset dirs are found relative to this module via
- *   `import.meta.dir`. But once the server is packaged into a desktop app
- *   (Tauri sidecar — Phase B), `import.meta.dir` no longer points at the repo
+ *   `import.meta.dirname`. But once the server is packaged into a desktop app
+ *   (Tauri sidecar — Phase B), `import.meta.dirname` no longer points at the repo
  *   layout: a `bun --compile` binary reports a virtual path (`/$bunfs/...`),
  *   and even a non-compiled sidecar lives under the .app's Resources, not the
  *   source tree. Every mature shell (Electron `process.resourcesPath`, Tauri
@@ -18,8 +18,8 @@
  *   1. FORGEAX_RESOURCE_ROOT — injected by the Tauri shell (Rust) from
  *      `app.path().resource_dir()`. Authoritative in the packaged app.
  *   2. process.execPath-adjacent — fallback anchor for a `bun --compile`
- *      binary whose `import.meta.dir` is virtual (looks for a sibling layout).
- *   3. import.meta.dir-relative — dev / source runs. Behavior is IDENTICAL to
+ *      binary whose `import.meta.dirname` is virtual (looks for a sibling layout).
+ *   3. import.meta.dirname-relative — dev / source runs. Behavior is IDENTICAL to
  *      before this refactor when FORGEAX_RESOURCE_ROOT is unset.
  *
  * The resolved root mirrors the repo `packages/` layout, so callers ask for
@@ -41,12 +41,12 @@ export function assetRoot(): string {
     return cached;
   }
 
-  // 2. bun --compile: import.meta.dir is a virtual /$bunfs path. Look for a
+  // 2. bun --compile: import.meta.dirname is a virtual /$bunfs path. Look for a
   //    resource layout next to the real on-disk binary (process.execPath).
   //    We only trust this if it actually contains our asset layout, so a
   //    normal `bun run` (where execPath is the bun binary itself) doesn't
   //    accidentally win over the dev fallback below.
-  const meta = import.meta.dir ?? '';
+  const meta = import.meta.dirname ?? '';
   const isVirtual = meta.startsWith('/$bunfs') || meta.startsWith('B:\\~BUN') || meta === '';
   if (isVirtual) {
     const execDir = dirname(process.execPath);

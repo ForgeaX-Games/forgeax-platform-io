@@ -1,4 +1,4 @@
-import { stat, mkdir, readdir } from 'fs/promises';
+import { stat, mkdir, readdir, readFile, writeFile } from 'fs/promises';
 import { dirname, extname, join } from 'path';
 
 export type FileKind = 'text' | 'image' | 'audio' | 'video' | 'model' | 'binary';
@@ -46,7 +46,7 @@ export function classify(path: string): { kind: FileKind; mime: string } {
 
 export async function readFileSafe(absPath: string, rel: string): Promise<FileInfo> {
   // stat first so we can distinguish missing path from directory path —
-  // Bun.file(dir).text() throws a generic EISDIR that the GET /api/files
+  // readFile(dir) throws a generic EISDIR that the GET /api/files
   // handler used to surface as "not found" (confusing: the dir *does*
   // exist). Now directories get their own thrown message so the route
   // can map it to a clearer "use /tree" hint if it wants.
@@ -63,14 +63,13 @@ export async function readFileSafe(absPath: string, rel: string): Promise<FileIn
   if (kind !== 'text') {
     return { path: rel, kind, mime, size: s.size, mtime: s.mtimeMs };
   }
-  const f = Bun.file(absPath);
-  const content = await f.text();
+  const content = await readFile(absPath, 'utf8');
   return { path: rel, kind, mime, content, size: s.size, mtime: s.mtimeMs };
 }
 
 export async function writeFileSafe(absPath: string, content: string): Promise<{ bytes: number }> {
   // Symmetric guard with readFileSafe (tick 352): if a caller submits a
-  // path that's already a directory, Bun.write would throw a raw EISDIR
+  // path that's already a directory, writeFile would throw a raw EISDIR
   // that surfaces as a noisy 500. A structured error lets the route map
   // it to a clear 400 instead.
   try {
@@ -82,7 +81,8 @@ export async function writeFileSafe(absPath: string, content: string): Promise<{
     if ((e as Error).message?.startsWith('target path is a directory')) throw e;
   }
   await mkdir(dirname(absPath), { recursive: true });
-  const bytes = await Bun.write(absPath, content);
+  await writeFile(absPath, content);
+  const bytes = Buffer.byteLength(content);
   return { bytes };
 }
 

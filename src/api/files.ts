@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { stat, unlink } from 'fs/promises';
+import { stat, unlink, readFile, writeFile } from 'fs/promises';
 import { readFileSafe, writeFileSafe, classify } from './lib/io';
 import { type FileBackend, studioFileBackend, WHITELIST_ERROR } from './lib/file-backend';
 
@@ -86,7 +86,7 @@ export function createFilesRouter(backend: FileBackend = studioFileBackend()) {
     if (!abs) return c.json({ error: WHITELIST_ERROR }, 400);
     try {
       const buf = Buffer.from(body.data, 'base64');
-      await Bun.write(abs, buf);
+      await writeFile(abs, buf);
       return c.json({ path: body.path, bytes: buf.byteLength });
     } catch (e) {
       return c.json({ error: (e as Error).message }, 500);
@@ -113,13 +113,13 @@ export function createFilesRouter(backend: FileBackend = studioFileBackend()) {
       return c.json({ error: 'is a directory — use GET /api/files/tree?root=<path>' }, 400);
     }
     const { mime } = classify(rel);
-    const f = Bun.file(abs);
+    const buf = await readFile(abs);
     // 媒体资源 (video/* / image/* / audio/*) 走轻量级缓存: 5 分钟内同 url 切换
     // 直接吃浏览器 disk cache, 不走 HTTP. ADR-0019 头像状态机切 state 时多次拉
     // 同一批 webm, no-cache 会让每次切换都打一次 HTTP → 视觉空白窗.
     // 文本/JSON 等仍 no-cache (热重载/编辑场景需要立即看到新内容).
     const isMedia = mime.startsWith('video/') || mime.startsWith('image/') || mime.startsWith('audio/');
-    return new Response(f, {
+    return new Response(buf, {
       headers: {
         'Content-Type': mime,
         'Content-Length': String(s.size),
@@ -131,7 +131,17 @@ export function createFilesRouter(backend: FileBackend = studioFileBackend()) {
   r.get('/tree', async (c) => {
     const rel = c.req.query('root') ?? '';
     const result = await backend.tree(rel);
-    if (!result.ok) return c.json({ error: result.error }, result.status);
+    if (!result.ok) {
+      // `optional=1`: the caller probes a dir that legitimately may not exist yet
+      // (editor scene/asset subtrees in a fresh game). Return 200 { tree:null } so
+      // the browser's network panel logs no red 404 for an expected-absent dir.
+      // 404 stays the default for genuine missing-dir errors every other caller
+      // relies on. Mirrors the file GET `optional=1` contract above.
+      if (result.status === 404 && c.req.query('optional') === '1') {
+        return c.json({ tree: null });
+      }
+      return c.json({ error: result.error }, result.status);
+    }
     return c.json({ tree: result.tree });
   });
 
