@@ -1,10 +1,9 @@
 // /api/assets — asset pipeline helpers for the editor.
 //
 // POST /api/assets/import-scene
-//   Reads a GLB and returns a SceneDocument (or single GltfRef entity) for the
-//   editor to merge into scene.json.
+//   Reads a GLB and returns scene metadata for the editor to materialise.
 //
-// glТF → .meta.json cooking is NOT done here. The backend (platform-io is the
+// glTF → .meta.json cooking is NOT done here. The backend (platform-io is the
 // 6-layer model's backend L1) cannot import @forgeax/engine-gltf (frontend L1),
 // so a backend-side cook can only hand-roll the sidecar — a second, drifting
 // implementation of the engine's toAssetPack. The editor (frontend L2) cooks
@@ -23,10 +22,11 @@ export function createAssetsRouter(): Hono {
   // POST /api/assets/import-scene
   // Body: { path: string, mode?: 'reference'|'full', maxNodes?: number }
   // Reads a GLB and returns a SceneDocument (or patch) to merge into scene.json.
-  //   'reference' (default): ONE entity with GltfRef + Transform → fastest, best for
-  //      large scenes (>200 nodes). Engine renders via loadByGuid on the scene GUID.
-  //   'full': one SceneDocument entity per GLTF node → shows full hierarchy in the
-  //      editor tree; only recommended for small scenes (≤200 nodes).
+  //   'reference' (default): returns scene metadata (path, nodeCount, meshCount)
+  //      for the editor to materialise via engine-native instantiateScene (D-5).
+  //      Fast, works for any size — no GltfRef entity wrapper.
+  //   'full': one entity per GLTF node → shows full hierarchy in the editor tree;
+  //      only recommended for small scenes (≤200 nodes).
   r.post('/import-scene', async (c) => {
     let body: { path?: unknown; mode?: unknown; maxNodes?: unknown };
     try { body = await c.req.json() as typeof body; }
@@ -75,38 +75,46 @@ export function createAssetsRouter(): Hono {
     const modelName = fileName.replace(/\.(glb|gltf)$/i, '');
 
     if (effectiveMode === 'reference') {
-      // Single entity pointing to the whole GLB. Fast, works for any size.
-      const entity = {
-        id: 1, name: modelName, parent: null,
-        components: {
-          Transform: { x: 0, y: 0, z: 0, scaleX: 1, scaleY: 1, scaleZ: 1 },
-          GltfRef: { path: body.path, nodeCount: totalNodes, meshCount: meshes.length },
-        },
-      };
+      // M4 / D-5: return scene metadata for the editor to materialise via
+      // engine-native instantiateScene (no GltfRef entity wrapper).
       return c.json({
         mode: 'reference', totalNodes, meshCount: meshes.length,
-        entity, // caller merges into scene
+        path: body.path, name: modelName,
         warning: totalNodes > maxNodes
-          ? `Large scene (${totalNodes} nodes) — imported as single GltfRef entity. Use mode:"full" for individual entities.`
+          ? `Large scene (${totalNodes} nodes) — imported as reference. Use mode:"full" for individual entities.`
           : undefined,
       });
     }
 
-    // 'full' mode: convert every GLTF node to a SceneDocument entity.
-    // Quaternion → Euler (YXZ, degrees) for the editor's rotX/Y/Z fields.
-    function quatToEuler(q: number[]): { rotX: number; rotY: number; rotZ: number } {
-      const [qx = 0, qy = 0, qz = 0, qw = 1] = q;
-      const sinr_cosp = 2 * (qw * qx + qy * qz);
-      const cosr_cosp = 1 - 2 * (qx * qx + qy * qy);
-      const rx = Math.atan2(sinr_cosp, cosr_cosp) * (180 / Math.PI);
-      const sinp = 2 * (qw * qy - qz * qx);
-      const ry = Math.abs(sinp) >= 1 ? Math.sign(sinp) * 90 : Math.asin(sinp) * (180 / Math.PI);
-      const siny_cosp = 2 * (qw * qz + qx * qy);
-      const cosy_cosp = 1 - 2 * (qy * qy + qz * qz);
-      const rz = Math.atan2(siny_cosp, cosy_cosp) * (180 / Math.PI);
-      const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
-      return { rotX: r4(rx), rotY: r4(ry), rotZ: r4(rz) };
-    }
+    // 'full' mode: convert every GLTF node to a SceneDocument entity using the
+    // ENGINE-NATIVE component vocabulary.
+    //
+    // F-1 review round 1 (feat-20260701 collapse): the former 'full' branch
+    // emitted editor-legacy components — `Transform{x,y,z,rotX/Y/Z}`,
+    // `Mesh{kind:'cube'}`, `Material{albedo}` — which the collapse DELETED from
+    // the editor schema/spawn. The editor's `spawnComponentData` resolves only
+    // registered engine components and (previously) silently dropped the rest, so
+    // every imported node materialised as an origin-placed empty Transform with
+    // NO geometry: an AGENTS.md #2 data-loss regression (geometry vanishes on
+    // import, never round-trips to reopen / Play). We now emit only components
+    // the editor registers:
+    //   - Transform: engine POD — posX/posY/posZ, quatX/quatY/quatZ/quatW,
+    //     scaleX/scaleY/scaleZ. glTF node.rotation is ALREADY a quaternion, so we
+    //     pass it straight through (no quat→euler conversion — the collapse pinned
+    //     Transform on quats end-to-end; converting here would re-introduce the
+    //     euler-treated-as-quat bug class AGENTS.md #6 warns about).
+    //   - MeshFilter{assetHandle: HANDLE_CUBE(=1)}: a VISIBLE builtin placeholder.
+    //     Custom-mesh registration from an imported GLB is engine-MVP-OOS
+    //     (engine mesh-filter.ts:44 `feat-future-asset-system`); until then a
+    //     builtin cube is an honest, rendering placeholder — NOT a silently
+    //     dropped component. `HANDLE_CUBE` is the u32 shared-handle constant `1`
+    //     (engine asset-registry.ts:185); platform-io is engine-dep-free by
+    //     design (this file's header), so we emit the literal with this anchor
+    //     rather than importing @forgeax/engine-runtime (would break the backend's
+    //     zero-engine isolation + the workspace DAG).
+    // The editor auto-adds a default-material MeshRenderer when MeshFilter is
+    // present (document.ts spawnComponentData), so no Material component is needed.
+    const HANDLE_CUBE = 1; // engine asset-registry.ts:185 HANDLE_CUBE = toShared(1)
 
     let nextId = 1;
     const entitiesArr: Array<{ id: number; name: string; parent: number | null; components: Record<string, unknown> }> = [];
@@ -117,19 +125,18 @@ export function createAssetsRouter(): Hono {
       const id = nextId++;
       const [tx = 0, ty = 0, tz = 0] = n.translation ?? [];
       const [sx = 1, sy = 1, sz = 1] = n.scale ?? [];
-      const rot = n.rotation ? quatToEuler(n.rotation) : {};
-      const transform = { x: tx, y: ty, z: tz, scaleX: sx, scaleY: sy, scaleZ: sz, ...rot };
+      const [qx = 0, qy = 0, qz = 0, qw = 1] = n.rotation ?? [];
+      const transform = {
+        posX: tx, posY: ty, posZ: tz,
+        quatX: qx, quatY: qy, quatZ: qz, quatW: qw,
+        scaleX: sx, scaleY: sy, scaleZ: sz,
+      };
       const components: Record<string, unknown> = { Transform: transform };
 
       if (n.mesh !== undefined) {
-        const m = meshes[n.mesh];
-        const mat = materials[0]; // simplification: first material
-        components.Mesh = { kind: 'cube' }; // placeholder — real geometry via GUID later
-        if (mat?.pbrMetallicRoughness?.baseColorFactor) {
-          const [r = 0.8, g = 0.8, b = 0.8] = mat.pbrMetallicRoughness.baseColorFactor;
-          const h = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0');
-          components.Material = { albedo: `#${h(r)}${h(g)}${h(b)}` };
-        }
+        // Visible builtin placeholder (see block comment). The editor adds a
+        // default-material MeshRenderer automatically when MeshFilter is present.
+        components.MeshFilter = { assetHandle: HANDLE_CUBE };
       }
       entitiesArr.push({ id, name: n.name ?? `Node_${nodeIdx}`, parent: parentId, components });
       (n.children ?? []).forEach((ci) => walkNode(ci, id));
