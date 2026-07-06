@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
-import { stat, unlink, readFile, writeFile } from 'fs/promises';
+import { stat, unlink, writeFile } from 'fs/promises';
+import { createReadStream } from 'node:fs';
+import { Readable } from 'node:stream';
 import { readFileSafe, writeFileSafe, classify } from './lib/io';
 import { type FileBackend, studioFileBackend, WHITELIST_ERROR } from './lib/file-backend';
 
@@ -113,13 +115,14 @@ export function createFilesRouter(backend: FileBackend = studioFileBackend()) {
       return c.json({ error: 'is a directory — use GET /api/files/tree?root=<path>' }, 400);
     }
     const { mime } = classify(rel);
-    const buf = await readFile(abs);
+    // 流式回传文件字节(createReadStream → WHATWG ReadableStream),Bun/Node 双跑。
+    const body = Readable.toWeb(createReadStream(abs)) as unknown as ReadableStream;
     // 媒体资源 (video/* / image/* / audio/*) 走轻量级缓存: 5 分钟内同 url 切换
     // 直接吃浏览器 disk cache, 不走 HTTP. ADR-0019 头像状态机切 state 时多次拉
     // 同一批 webm, no-cache 会让每次切换都打一次 HTTP → 视觉空白窗.
     // 文本/JSON 等仍 no-cache (热重载/编辑场景需要立即看到新内容).
     const isMedia = mime.startsWith('video/') || mime.startsWith('image/') || mime.startsWith('audio/');
-    return new Response(buf, {
+    return new Response(body, {
       headers: {
         'Content-Type': mime,
         'Content-Length': String(s.size),
