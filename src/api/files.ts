@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { mkdir, stat, unlink, writeFile } from 'fs/promises';
+import { stat, unlink, writeFile } from 'fs/promises';
 import { createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { readFileSafe, writeFileSafe, classify } from './lib/io';
@@ -8,7 +8,6 @@ import { type FileBackend, studioFileBackend, WHITELIST_ERROR } from './lib/file
 interface WriteBody {
   path?: unknown;
   content?: unknown;
-  mkdir?: unknown;
 }
 
 /**
@@ -55,28 +54,11 @@ export function createFilesRouter(backend: FileBackend = studioFileBackend()) {
     } catch {
       return c.json({ error: 'invalid json body' }, 400);
     }
-    if (typeof body?.path !== 'string') {
-      return c.json({ error: 'field { path: string } required' }, 400);
+    if (typeof body?.path !== 'string' || typeof body?.content !== 'string') {
+      return c.json({ error: 'fields { path: string, content: string } required' }, 400);
     }
     const abs = backend.resolveWrite(body.path);
     if (!abs) return c.json({ error: WHITELIST_ERROR }, 400);
-
-    // mkdir branch: create a directory instead of writing a file. The editor's
-    // Content Browser "New Folder" sends { path, content: '', mkdir: true } —
-    // without this branch the handler falls through to writeFileSafe and
-    // silently creates an empty *file* named after the intended folder.
-    if (body.mkdir === true) {
-      try {
-        await mkdir(abs, { recursive: true });
-        return c.json({ path: body.path, directory: true });
-      } catch (e) {
-        return c.json({ error: (e as Error).message }, 500);
-      }
-    }
-
-    if (typeof body?.content !== 'string') {
-      return c.json({ error: 'fields { path: string, content: string } required' }, 400);
-    }
     try {
       const { bytes } = await writeFileSafe(abs, body.content);
       return c.json({ path: body.path, bytes });
