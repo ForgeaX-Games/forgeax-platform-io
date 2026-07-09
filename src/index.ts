@@ -51,3 +51,11 @@ export {
 } from './api/lib/scaffold-default-workspace';
 export { assetRoot, mp, interfaceDist } from './lib/asset-root';
 export { readUninstalledAgentIds, writeUninstalledAgentIds } from './api/lib/agent-prefs';
+export {
+  writeAgentPack,
+  agentPackLayerRoot,
+  type AgentPackFiles,
+  type AgentPackScope,
+  type WriteAgentPackOpts,
+  type WriteAgentPackResult,
+} from './api/lib/agent-pack';
