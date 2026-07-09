@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { mkdir, stat, unlink, writeFile } from 'fs/promises';
+import { mkdir, rm, stat, unlink, writeFile } from 'fs/promises';
 import { createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { readFileSafe, writeFileSafe, classify } from './lib/io';
@@ -171,6 +171,11 @@ export function createFilesRouter(backend: FileBackend = studioFileBackend()) {
     const abs = backend.resolveWrite(rel);
     if (!abs) return c.json({ error: WHITELIST_ERROR }, 400);
     try {
+      const s = await stat(abs);
+      if (s.isDirectory()) {
+        await rm(abs, { recursive: true, force: true });
+        return c.json({ ok: true, path: rel, directory: true });
+      }
       await unlink(abs);
       return c.json({ ok: true, path: rel });
     } catch (e) {
