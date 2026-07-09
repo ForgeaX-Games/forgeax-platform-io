@@ -14,7 +14,7 @@ import {
   type BrowserLocalStorageSnapshot,
 } from './lib/browser-localStorage-prefs';
 
-const VALID_WORKSPACE_IDS = new Set(['edit', 'preview', 'workbench']);
+const VALID_WORKBENCH_IDS = new Set(['scene', 'ai']);
 
 export function createPrefsRouter(projectRoot: string) {
   const r = new Hono();
@@ -77,16 +77,17 @@ export function createPrefsRouter(projectRoot: string) {
     }
   });
 
-  // ── Workspace panel layouts ───────────────────────────────────────────────
-  // Each workspace (edit / preview / workbench) stores a dockview SerializedDockview
-  // JSON under .forgeax/prefs/workspace-layouts/<id>.json. The client writes on
-  // every layout change (debounced 1.5 s) and reads on startup as a fallback when
-  // localStorage is empty (e.g. fresh machine, cleared browser storage).
+  // ── Workbench panel layouts ───────────────────────────────────────────────
+  // Each built-in workbench (scene / ai) stores a dockview SerializedDockview
+  // JSON under .forgeax/prefs/workbenches/<id>.json. The client writes on
+  // every layout change (debounced 1.5 s) and reads on startup as a fallback
+  // when localStorage is empty (fresh machine, cleared browser storage).
+  // (2026-07-08 v9: 'edit' renamed to 'scene' to align id with user-visible name.)
 
-  r.get('/workspace-layout/:id', (c) => {
+  r.get('/workbench-layout/:id', (c) => {
     const id = c.req.param('id');
-    if (!VALID_WORKSPACE_IDS.has(id)) return c.json({ error: 'invalid workspace id' }, 400);
-    const p = resolve(projectRoot, '.forgeax/prefs/workspace-layouts', `${id}.json`);
+    if (!VALID_WORKBENCH_IDS.has(id)) return c.json({ error: 'invalid workbench id' }, 400);
+    const p = resolve(projectRoot, '.forgeax/prefs/workbenches', `${id}.json`);
     if (!existsSync(p)) return c.json(null);
     try {
       return c.json(JSON.parse(readFileSync(p, 'utf8')));
@@ -95,13 +96,13 @@ export function createPrefsRouter(projectRoot: string) {
     }
   });
 
-  r.put('/workspace-layout/:id', async (c) => {
+  r.put('/workbench-layout/:id', async (c) => {
     const id = c.req.param('id');
-    if (!VALID_WORKSPACE_IDS.has(id)) return c.json({ error: 'invalid workspace id' }, 400);
+    if (!VALID_WORKBENCH_IDS.has(id)) return c.json({ error: 'invalid workbench id' }, 400);
     let layout: unknown;
     try { layout = await c.req.json(); } catch { return c.json({ error: 'invalid json' }, 400); }
     if (!layout || typeof layout !== 'object') return c.json({ error: 'layout must be an object' }, 400);
-    const dir = resolve(projectRoot, '.forgeax/prefs/workspace-layouts');
+    const dir = resolve(projectRoot, '.forgeax/prefs/workbenches');
     try {
       mkdirSync(dir, { recursive: true });
       writeFileSync(resolve(dir, `${id}.json`), `${JSON.stringify(layout, null, 2)}\n`, 'utf8');
