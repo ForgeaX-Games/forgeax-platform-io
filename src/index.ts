@@ -17,7 +17,6 @@ export {
   WHITELIST_ERROR,
 } from './api/lib/file-backend';
 export { createFsBrowserRouter } from './api/fs-browser';
-export { createAssetsRouter } from './api/assets';
 export { createGameAssetsRouter } from './api/game-assets';
 export { createProjectsRouter, PROJECT_ID_RE } from './api/projects';
 export { createLogsRouter, logsDir, appendToStream } from './api/logs';
