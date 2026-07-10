@@ -98,8 +98,8 @@ export function createAssetsRouter(): Hono {
     // NO geometry: an AGENTS.md #2 data-loss regression (geometry vanishes on
     // import, never round-trips to reopen / Play). We now emit only components
     // the editor registers:
-    //   - Transform: engine POD — posX/posY/posZ, quatX/quatY/quatZ/quatW,
-    //     scaleX/scaleY/scaleZ. glTF node.rotation is ALREADY a quaternion, so we
+    //   - Transform: engine POD — pos[3], quat[4], scale[3] arrays (feat-20260709
+    //     array-TRS). glTF node.rotation is ALREADY a quaternion, so we
     //     pass it straight through (no quat→euler conversion — the collapse pinned
     //     Transform on quats end-to-end; converting here would re-introduce the
     //     euler-treated-as-quat bug class AGENTS.md #6 warns about).
@@ -127,9 +127,9 @@ export function createAssetsRouter(): Hono {
       const [sx = 1, sy = 1, sz = 1] = n.scale ?? [];
       const [qx = 0, qy = 0, qz = 0, qw = 1] = n.rotation ?? [];
       const transform = {
-        posX: tx, posY: ty, posZ: tz,
-        quatX: qx, quatY: qy, quatZ: qz, quatW: qw,
-        scaleX: sx, scaleY: sy, scaleZ: sz,
+        pos: [tx, ty, tz],
+        quat: [qx, qy, qz, qw],
+        scale: [sx, sy, sz],
       };
       const components: Record<string, unknown> = { Transform: transform };
 
