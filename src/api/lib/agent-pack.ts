@@ -44,8 +44,8 @@ export type WriteAgentPackResult =
  *  global → `~/.forgeax/plugins`(L1);project → `<projectRoot>/.forgeax/plugins`(L2)。 */
 export function agentPackLayerRoot(scope: AgentPackScope, projectRoot?: string): string {
   return scope === 'global'
-    ? resolve(homedir(), '.forgeax', 'plugins')
-    : resolve(projectRoot ?? defaultProjectRoot(), '.forgeax', 'plugins');
+    ? resolve(homedir(), '.forgeax', 'extensions')
+    : resolve(projectRoot ?? defaultProjectRoot(), '.forgeax', 'extensions');
 }
 
 function ensureTrailingNewline(s: string): string {

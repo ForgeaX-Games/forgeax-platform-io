@@ -23,7 +23,7 @@
  *      before this refactor when FORGEAX_RESOURCE_ROOT is unset.
  *
  * The resolved root mirrors the repo `packages/` layout, so callers ask for
- * `marketplace/plugins/<id>/dist`, `interface/dist`, etc. The desktop payload
+ * `marketplace/extensions/<id>/dist`, `interface/dist`, etc. The desktop payload
  * script lays Resources out the same way.
  */
 import { resolve, dirname } from 'node:path';
@@ -69,9 +69,9 @@ export function assetRoot(): string {
   return cached;
 }
 
-/** Path under a marketplace plugin, e.g. mp('wb-character', 'dist'). */
+/** Path under a marketplace extension, e.g. mp('wb-character', 'dist'). */
 export function mp(...segments: string[]): string {
-  return resolve(assetRoot(), 'marketplace', 'plugins', ...segments);
+  return resolve(assetRoot(), 'marketplace', 'extensions', ...segments);
 }
 
 /** The built interface SPA dist (single-origin / desktop form). */
