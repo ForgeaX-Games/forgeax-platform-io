@@ -1,8 +1,8 @@
 /** agent-pack —— 中立的「把一份 agent-pack 落到用户可写插件层」IO primitive。
  *
  *  背景:产品层的 `team:create_role` 工具要让 LLM「铸造新队友」——把一份
- *  agent-pack(forgeax-plugin.json kind:agent + persona/zh.md + 可选 memory)写进
- *  L1(`~/.forgeax/plugins`)或 L2(`<projectRoot>/.forgeax/plugins`)。写盘本身是
+ *  agent-pack(forgeax-extension.json kind:agent + persona/zh.md + 可选 memory)写进
+ *  L1(`~/.forgeax/extensions`)或 L2(`<projectRoot>/.forgeax/extensions`)。写盘本身是
  *  纯 IO,属于 platform-io 这层最通用的底座(见本包 .dependency-cruiser.cjs:零上行)。
  *
  *  分工:本 primitive **只负责把已组装、已校验的字节落到磁盘**——
@@ -22,7 +22,7 @@ export type AgentPackScope = 'global' | 'project';
 export interface AgentPackFiles {
   /** 落盘目录名(插件层根下的一级目录),如 `agent-scout`。仅 [A-Za-z0-9._-]。 */
   slug: string;
-  /** forgeax-plugin.json 的内容(调用方已组装 + 校验;这里只 JSON.stringify)。 */
+  /** forgeax-extension.json 的内容(调用方已组装 + 校验;这里只 JSON.stringify)。 */
   manifest: unknown;
   /** 角色 system 提示词 → persona/zh.md。 */
   persona: string;
@@ -40,8 +40,8 @@ export type WriteAgentPackResult =
   | { ok: true; dir: string; scope: AgentPackScope }
   | { ok: false; code: 'exists' | 'bad_input' | 'fs_error'; error: string };
 
-/** 解析某 scope 的插件层根目录。
- *  global → `~/.forgeax/plugins`(L1);project → `<projectRoot>/.forgeax/plugins`(L2)。 */
+/** 解析某 scope 的扩展层根目录。
+ *  global → `~/.forgeax/extensions`(L1);project → `<projectRoot>/.forgeax/extensions`(L2)。 */
 export function agentPackLayerRoot(scope: AgentPackScope, projectRoot?: string): string {
   return scope === 'global'
     ? resolve(homedir(), '.forgeax', 'extensions')
@@ -54,7 +54,12 @@ function ensureTrailingNewline(s: string): string {
 
 /** 把一份 agent-pack 写入 L1/L2。目录已存在则拒(不覆盖)。 */
 export function writeAgentPack(files: AgentPackFiles, opts: WriteAgentPackOpts): WriteAgentPackResult {
-  if (!files.slug || !/^[A-Za-z0-9._-]+$/.test(files.slug)) {
+  if (
+    !files.slug ||
+    files.slug === '.' ||
+    files.slug === '..' ||
+    !/^[A-Za-z0-9._-]+$/.test(files.slug)
+  ) {
     return { ok: false, code: 'bad_input', error: `invalid agent-pack slug: ${JSON.stringify(files.slug)}` };
   }
   if (typeof files.persona !== 'string' || !files.persona.trim()) {
@@ -68,7 +73,7 @@ export function writeAgentPack(files: AgentPackFiles, opts: WriteAgentPackOpts):
   try {
     mkdirSync(join(dir, 'persona'), { recursive: true });
     writeFileSync(
-      join(dir, 'forgeax-plugin.json'),
+      join(dir, 'forgeax-extension.json'),
       `${JSON.stringify(files.manifest, null, 2)}\n`,
       'utf-8',
     );
