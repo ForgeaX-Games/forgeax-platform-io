@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "后端 L1 平台 IO 基建:files/assets/projects/fs/logs/prefs/version/changelog/boot-splash 等纯 IO router + safe-path/io/asset-root 工具。零 agent/session/llm 依赖,可被 cli(后L2)/server(后L3)/editor(前L2)直接复用。R1 从 forgeax-cli 抽出。",
+  "description": "后端 L1 平台 IO 基建:files/assets/projects/fs/logs/prefs/version/changelog/boot-splash 等纯 IO router + safe-path/io/asset-root 工具。零 agent/session/llm 依赖,可被 cli(后L2)/server(后L3)/editor(前L2)直接复用。R1 从 @forgeax/orchestrator 抽出。",
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",

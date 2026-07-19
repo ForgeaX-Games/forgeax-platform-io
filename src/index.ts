@@ -2,7 +2,7 @@
  * @forgeax/platform-io — 后端 L1 平台 IO 基建 barrel。
  *
  * 10 个纯 IO router 工厂 + 复用工具(safe-path / friendly-path / io /
- * asset-root / known-projects / scaffold)。R1 从 forgeax-cli 抽出,
+ * asset-root / known-projects / scaffold)。R1 从 @forgeax/orchestrator 抽出,
  * 由 cli(后L2)经 createForgeaxApp 挂载、server(后L3)直接复用、
  * 将来 editor(前L2)standalone 直连。零 agent/session/llm 依赖。
  */

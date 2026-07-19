@@ -39,7 +39,7 @@ function locateChangelog(): string | null {
     resolve(process.cwd(), 'CHANGELOG.md'),
     resolve(process.cwd(), '..', 'CHANGELOG.md'),
     resolve(process.cwd(), '..', '..', 'CHANGELOG.md'),
-    // R1: 本模块从 packages/cli/src/api 迁到 packages/kernel/platform-io/src/api
+    // R1: 本模块从 packages/orchestrator/src/api 迁到 packages/kernel/platform-io/src/api
     // (多一层 kernel/),import.meta.dirname 到仓根的相对深度 +1(四层→五层)。
     resolve(import.meta.dirname ?? __dirname, '..', '..', '..', '..', '..', 'CHANGELOG.md'),
   ];
