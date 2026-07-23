@@ -35,6 +35,19 @@ const EXT_KIND: Record<string, { kind: FileKind; mime: string }> = {
   '.mov':  { kind: 'video', mime: 'video/quicktime' },
   '.glb':  { kind: 'model', mime: 'model/gltf-binary' },
   '.gltf': { kind: 'model', mime: 'model/gltf+json' },
+  '.fbx':  { kind: 'model', mime: 'application/octet-stream' },
+  '.obj':  { kind: 'model', mime: 'text/plain' },
+  '.dae':  { kind: 'model', mime: 'model/vnd.collada+xml' },
+  '.stl':  { kind: 'model', mime: 'model/stl' },
+  '.ply':  { kind: 'model', mime: 'application/x-ply' },
+  '.usdz': { kind: 'model', mime: 'model/vnd.usdz+zip' },
+  '.usda': { kind: 'model', mime: 'model/vnd.usda' },
+  '.usdc': { kind: 'model', mime: 'model/vnd.usdc' },
+  '.abc':  { kind: 'binary', mime: 'application/octet-stream' },
+  '.blend': { kind: 'binary', mime: 'application/octet-stream' },
+  '.max':  { kind: 'binary', mime: 'application/octet-stream' },
+  '.mb':   { kind: 'binary', mime: 'application/octet-stream' },
+  '.ma':   { kind: 'binary', mime: 'application/octet-stream' },
 };
 
 export function classify(path: string): { kind: FileKind; mime: string } {

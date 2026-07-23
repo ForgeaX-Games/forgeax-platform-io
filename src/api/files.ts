@@ -1,7 +1,10 @@
 import { Hono } from 'hono';
-import { mkdir, rm, stat, unlink, writeFile } from 'fs/promises';
+import { dirname, resolve, basename } from 'node:path';
+import { existsSync } from 'node:fs';
+import { mkdir, rename, rm, stat, unlink, writeFile } from 'fs/promises';
 import { createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
+import { spawn } from 'node:child_process';
 import { readFileSafe, writeFileSafe, classify } from './lib/io';
 import { type FileBackend, studioFileBackend, WHITELIST_ERROR } from './lib/file-backend';
 
@@ -182,6 +185,76 @@ export function createFilesRouter(backend: FileBackend = studioFileBackend()) {
       const msg = (e as Error).message;
       if (msg.includes('ENOENT')) return c.json({ ok: true, path: rel });
       return c.json({ error: msg }, 500);
+    }
+  });
+
+  // POST /api/files/rename — atomically rename/move a file or directory.
+  // Body: { from: string, to: string } (both client-space relative paths).
+  // Used by Content Browser folder/file rename. Both paths go through the
+  // backend's write confinement so traversal is impossible.
+  r.post('/rename', async (c) => {
+    let body: { from?: unknown; to?: unknown };
+    try { body = await c.req.json() as { from?: unknown; to?: unknown }; }
+    catch { return c.json({ error: 'invalid json body' }, 400); }
+    if (typeof body?.from !== 'string' || typeof body?.to !== 'string') {
+      return c.json({ error: 'fields { from: string, to: string } required' }, 400);
+    }
+    const absFrom = backend.resolveWrite(body.from);
+    if (!absFrom) return c.json({ error: WHITELIST_ERROR }, 400);
+    const absTo = backend.resolveWrite(body.to);
+    if (!absTo) return c.json({ error: WHITELIST_ERROR }, 400);
+    try {
+      await stat(absFrom);
+    } catch {
+      return c.json({ error: 'source not found' }, 404);
+    }
+    if (existsSync(absTo)) {
+      return c.json({ error: 'target already exists' }, 409);
+    }
+    try {
+      await mkdir(dirname(absTo), { recursive: true });
+      await rename(absFrom, absTo);
+      return c.json({ ok: true, from: body.from, to: body.to });
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 500);
+    }
+  });
+
+  // POST /api/files/reveal — open the OS file manager and highlight a file.
+  // Body: { path: string } (client-space relative path).
+  // Platform commands: win32 → explorer /select,<abs>; darwin → open -R <abs>;
+  // linux → xdg-open <dirname(abs)>.
+  r.post('/reveal', async (c) => {
+    let body: { path?: unknown };
+    try { body = await c.req.json() as { path?: unknown }; }
+    catch { return c.json({ error: 'invalid json body' }, 400); }
+    if (typeof body?.path !== 'string') {
+      return c.json({ error: 'field { path: string } required' }, 400);
+    }
+    const abs = backend.resolveRead(body.path);
+    if (!abs) return c.json({ error: WHITELIST_ERROR }, 400);
+    if (!existsSync(abs)) {
+      return c.json({ error: 'path not found' }, 404);
+    }
+    try {
+      const isDir = (await stat(abs)).isDirectory();
+      const platform = process.platform;
+      let cmd: string;
+      let args: string[];
+      if (platform === 'win32') {
+        cmd = 'explorer';
+        args = isDir ? [abs] : ['/select,', abs];
+      } else if (platform === 'darwin') {
+        cmd = 'open';
+        args = isDir ? [abs] : ['-R', abs];
+      } else {
+        cmd = 'xdg-open';
+        args = [isDir ? abs : dirname(abs)];
+      }
+      spawn(cmd, args, { stdio: 'ignore', detached: true }).unref();
+      return c.json({ ok: true, path: body.path });
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 500);
     }
   });
 

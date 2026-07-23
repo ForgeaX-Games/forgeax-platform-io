@@ -18,6 +18,20 @@ export {
 } from './api/lib/file-backend';
 export { createFsBrowserRouter } from './api/fs-browser';
 export { createGameAssetsRouter } from './api/game-assets';
+export { createGameHostRouter, type GameHostOptions } from './api/game-host';
+export {
+  readGamePackage,
+  writeGamePackage,
+  defaultProject,
+  type GamePackage,
+  type WritePackageInput,
+} from './api/lib/game-package';
+export {
+  createVersion as createGameVersion,
+  currentVersion as currentGameVersion,
+  type CreatedVersion,
+  type CurrentVersion,
+} from './api/lib/game-git';
 export { createProjectsRouter, PROJECT_ID_RE } from './api/projects';
 export { createLogsRouter, logsDir, appendToStream } from './api/logs';
 export { createVersionRouter, getVersion } from './api/version';
