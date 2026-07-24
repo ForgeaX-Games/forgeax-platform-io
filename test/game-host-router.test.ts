@@ -165,6 +165,37 @@ describe('versions', () => {
   });
 });
 
+describe('version switching (list + read at tag, non-destructive)', () => {
+  test('GET /versions lists all vN newest-first, matching current', async () => {
+    const body = await (await router.request(`/games/${SLUG}/versions`)).json();
+    const tags = body.versions.map((v: { tag: string }) => v.tag);
+    expect(tags.length).toBeGreaterThanOrEqual(2);
+    expect(tags).toContain('v1');
+    const cur = await (await router.request(`/games/${SLUG}/versions/current`)).json();
+    expect(tags[0]).toBe(cur.tag); // newest first == current latest
+  });
+
+  test('GET /versions/:tag/package reads that version content (no checkout / no history change)', async () => {
+    // v1 was the original sampleBlueprint (empty graph)
+    const v1 = await (await router.request(`/games/${SLUG}/versions/v1/package`)).json();
+    expect(v1.blueprint.graph.nodes).toEqual([]);
+    // latest tag's package matches the current on-disk blueprint
+    const cur = await (await router.request(`/games/${SLUG}/versions/current`)).json();
+    const latest = await (await router.request(`/games/${SLUG}/versions/${cur.tag}/package`)).json();
+    const nowPkg = await (await router.request(`/games/${SLUG}/package`)).json();
+    expect(latest.blueprint.graph).toEqual(nowPkg.blueprint.graph);
+    // reading an old version must NOT change current / dirty state
+    const cur2 = await (await router.request(`/games/${SLUG}/versions/current`)).json();
+    expect(cur2.tag).toBe(cur.tag);
+    expect(cur2.dirty).toBe(false);
+  });
+
+  test('unknown tag → 404; bad tag → 404', async () => {
+    expect((await router.request(`/games/${SLUG}/versions/v999/package`)).status).toBe(404);
+    expect((await router.request(`/games/${SLUG}/versions/nope/package`)).status).toBe(404);
+  });
+});
+
 describe('GET /games/:slug/components/*', () => {
   test('404 when dist/components is unbuilt (client falls back to built-ins)', async () => {
     const res = await router.request(`/games/${SLUG}/components/index.js`);

@@ -19,7 +19,7 @@ import { existsSync, statSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defaultProjectRoot, resolveSafePath } from './lib/safe-path';
 import { readGamePackage, writeGamePackage } from './lib/game-package';
-import { createVersion, currentVersion } from './lib/game-git';
+import { createVersion, currentVersion, listVersions, readPackageAtTag } from './lib/game-git';
 
 // Same slug shape wb-game-video uses; also blocks path traversal via slug.
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,40}$/;
@@ -123,6 +123,23 @@ export function createGameHostRouter(opts: GameHostOptions = {}) {
     const dir = gameDir(c.req.param('slug'));
     if (!dir) return c.json({ error: 'invalid slug' }, 400);
     return c.json(currentVersion(dir));
+  });
+
+  // List all versions (newest first) — for a non-destructive "switch version" UI.
+  r.get('/games/:slug/versions', (c) => {
+    const dir = gameDir(c.req.param('slug'));
+    if (!dir) return c.json({ error: 'invalid slug' }, 400);
+    return c.json({ versions: listVersions(dir) });
+  });
+
+  // Read a package AT a version tag (read-only, no checkout / no history rewrite).
+  // The editor loads this into its working set; saving creates a new version.
+  r.get('/games/:slug/versions/:tag/package', (c) => {
+    const dir = gameDir(c.req.param('slug'));
+    if (!dir) return c.json({ error: 'invalid slug' }, 400);
+    const pkg = readPackageAtTag(dir, c.req.param('tag'));
+    if (!pkg) return c.json({ error: 'version not found' }, 404);
+    return c.json(pkg);
   });
 
   // Serve a game's built component artifacts (dist/components/*) so the runtime

@@ -145,6 +145,76 @@ export interface CurrentVersion {
   dirty: boolean;
 }
 
+export interface VersionEntry {
+  tag: string;
+  /** annotated-tag creation time (unix seconds). */
+  createdAt: number;
+  /** tag message (subject). */
+  message: string;
+}
+
+/** List all `vN` versions (newest first), read-only. Empty when no repo/tags. */
+export function listVersions(dir: string): VersionEntry[] {
+  if (!hasRepo(dir)) return [];
+  let out = '';
+  try {
+    out = git(dir, [
+      'for-each-ref',
+      'refs/tags/v*',
+      '--format=%(refname:short)\t%(creatordate:unix)\t%(subject)',
+    ]);
+  } catch {
+    return [];
+  }
+  return out
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const [tag, ts, ...rest] = l.split('\t');
+      return { tag, createdAt: Number(ts) || 0, message: rest.join('\t') };
+    })
+    .filter((v) => /^v\d+$/.test(v.tag))
+    .sort((a, b) => {
+      const na = Number(a.tag.slice(1));
+      const nb = Number(b.tag.slice(1));
+      return nb - na; // newest (highest vN) first
+    });
+}
+
+/**
+ * Read a game package **at a given version tag** without touching the working
+ * tree or history (`git show <tag>:<file>`). Returns parsed JSON per file, each
+ * `null` when absent/unparseable at that tag. Used for non-destructive "load an
+ * old version into the editor" — the editor then saves it as a new version.
+ */
+export function readPackageAtTag(
+  dir: string,
+  tag: string,
+): { project: unknown | null; blueprint: unknown | null; assetsManifest: unknown | null } | null {
+  if (!/^v\d+$/.test(tag)) return null;
+  if (!hasRepo(dir)) return null;
+  const showJson = (file: string): unknown | null => {
+    try {
+      const raw = git(dir, ['show', `${tag}:${file}`]);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+  // tag must exist
+  try {
+    git(dir, ['rev-parse', `${tag}^{}`]);
+  } catch {
+    return null;
+  }
+  return {
+    project: showJson('project.json'),
+    blueprint: showJson('blueprint.json'),
+    assetsManifest: showJson('assets/manifest.json'),
+  };
+}
+
 /** Latest `vN` tag + HEAD hash + working-tree dirty flag. */
 export function currentVersion(dir: string): CurrentVersion {
   if (!hasRepo(dir)) return { tag: null, commitHash: null, dirty: false };
