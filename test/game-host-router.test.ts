@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { mkdtemp, mkdir, rm, readFile } from 'fs/promises';
+import { mkdtemp, mkdir, rm, readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
@@ -59,7 +59,7 @@ describe('PUT/GET /games/:slug/package', () => {
     const body = await res.json();
     expect(body.blueprint).toEqual(sampleBlueprint);
     expect(body.project.id).toBe(SLUG);
-    expect(body.assetsManifest).toEqual({ assets: {} });
+    expect(body.assetsManifest).toEqual({ version: 2, assets: [] });
   });
 
   test('PUT without blueprint → 400', async () => {
@@ -78,7 +78,10 @@ describe('PUT/GET /games/:slug/package', () => {
 
   test('caller-provided project + manifest are persisted verbatim', async () => {
     const project = { id: SLUG, title: 'Custom', platform: 'wb-game-video', platformVersion: '1', entry: { blueprint: 'blueprint.json', components: 'dist/components' } };
-    const assetsManifest = { assets: { clip1: { url: 'https://cdn.example/clip1.mp4', kind: 'video' } } };
+    const assetsManifest = {
+      version: 2,
+      assets: [{ id: 'clip1', url: 'https://cdn.example/clip1.mp4', kind: 'video' }],
+    };
     const res = await router.request(`/games/${SLUG}/package`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
@@ -88,6 +91,30 @@ describe('PUT/GET /games/:slug/package', () => {
     const get = await (await router.request(`/games/${SLUG}/package`)).json();
     expect(get.project.title).toBe('Custom');
     expect(get.assetsManifest).toEqual(assetsManifest);
+  });
+
+  test('rejects a non-canonical asset manifest', async () => {
+    const res = await router.request(`/games/${SLUG}/package`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ blueprint: sampleBlueprint, assetsManifest: { assets: {} } }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test('does not replace a malformed existing manifest when the payload omits it', async () => {
+    const manifestPath = join(gameRoot(), 'assets', 'manifest.json');
+    await writeFile(manifestPath, '{broken');
+
+    const res = await router.request(`/games/${SLUG}/package`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ blueprint: sampleBlueprint }),
+    });
+
+    expect(res.status).toBe(400);
+    expect(await readFile(manifestPath, 'utf-8')).toBe('{broken');
+    await writeFile(manifestPath, JSON.stringify({ version: 2, assets: [] }));
   });
 });
 
@@ -155,6 +182,7 @@ describe('versions', () => {
     // .gitignore was created with the defaults
     const gi = await (await import('fs/promises')).readFile(resolve(gameRoot(), '.gitignore'), 'utf-8');
     expect(gi).toContain('sessions/');
+    expect(gi).toContain('assets/.uploads/');
     expect(gi).toContain('*.log');
 
     // sessions/ + *.log are NOT tracked in the committed version

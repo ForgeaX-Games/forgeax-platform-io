@@ -13,7 +13,7 @@ import { resolve } from 'node:path';
 
 // Runtime state that must never enter a game version (agent sessions, logs,
 // caches, deps). Kept minimal + generic; games may add their own lines.
-const DEFAULT_IGNORES = ['sessions/', '*.log', 'node_modules/', '.DS_Store'];
+const DEFAULT_IGNORES = ['sessions/', 'assets/.uploads/', '*.log', 'node_modules/', '.DS_Store'];
 
 // Inline identity + no-gpg so commits/tags never depend on ambient git config
 // (fresh game repos have none; CI/desktop must not prompt or fail).
@@ -71,7 +71,7 @@ function ensureGitignore(dir: string): void {
 function untrackRuntimeState(dir: string): void {
   if (!hasHead(dir)) return;
   try {
-    git(dir, ['rm', '-r', '--cached', '--ignore-unmatch', 'sessions']);
+    git(dir, ['rm', '-r', '--cached', '--ignore-unmatch', 'sessions', 'assets/.uploads']);
   } catch {
     /* best-effort */
   }

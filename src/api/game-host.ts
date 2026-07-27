@@ -18,7 +18,7 @@ import { Hono } from 'hono';
 import { existsSync, statSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defaultProjectRoot, resolveSafePath } from './lib/safe-path';
-import { readGamePackage, writeGamePackage } from './lib/game-package';
+import { GamePackageValidationError, readGamePackage, writeGamePackage } from './lib/game-package';
 import { createVersion, currentVersion, listVersions, readPackageAtTag } from './lib/game-git';
 
 // Same slug shape wb-game-video uses; also blocks path traversal via slug.
@@ -90,7 +90,8 @@ export function createGameHostRouter(opts: GameHostOptions = {}) {
         assetsManifest: body.assetsManifest,
       });
     } catch (e) {
-      return c.json({ error: String((e as Error)?.message ?? e) }, 500);
+      const status = e instanceof GamePackageValidationError ? 400 : 500;
+      return c.json({ error: String((e as Error)?.message ?? e) }, status);
     }
     return c.json({ ok: true });
   });
