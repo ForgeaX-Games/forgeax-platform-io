@@ -18,7 +18,13 @@ import { Hono } from 'hono';
 import { existsSync, statSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defaultProjectRoot, resolveSafePath } from './lib/safe-path';
-import { GamePackageValidationError, readGamePackage, writeGamePackage } from './lib/game-package';
+import {
+  GamePackageValidationError,
+  readGamePackage,
+  writeGamePackage,
+  classifyGamePackage,
+  initializeGamePackage,
+} from './lib/game-package';
 import { createVersion, currentVersion, listVersions, readPackageAtTag } from './lib/game-git';
 
 // Same slug shape wb-game-video uses; also blocks path traversal via slug.
@@ -48,7 +54,15 @@ const MIME: Record<string, string> = {
  */
 export interface GameHostOptions {
   beforeVersion?: (args: { slug: string; gameDir: string; project: unknown }) => void | Promise<void>;
+  seedProvider?: (args: { slug: string }) => Promise<{
+    project?: unknown;
+    blueprint: unknown;
+    assetsManifest: unknown;
+  }>;
 }
+
+type InitResult = { status: number; body: unknown };
+const initFlights = new Map<string, Promise<InitResult>>();
 
 /** Confine a `dist/components/<rel>` request under the game dir (no traversal). */
 function componentFile(slug: string, rel: string): string | null {
@@ -71,6 +85,47 @@ export function createGameHostRouter(opts: GameHostOptions = {}) {
     if (!dir) return c.json({ error: 'invalid slug' }, 400);
     return c.json(readGamePackage(dir));
   });
+
+  const packageStatus = (c: any) => {
+    const dir = gameDir(c.req.param('slug'));
+    if (!dir) return c.json({ state: 'inconsistent', missing: [], error: { code: 'video-game-invalid-slug', target: 'slug', retryable: false } }, 400);
+    return c.json(classifyGamePackage(dir));
+  };
+  r.get('/games/:slug/package/status', packageStatus);
+
+  const initialize = async (c: any) => {
+    const slug = c.req.param('slug');
+    const dir = gameDir(slug);
+    if (!dir) return c.json({ state: 'error', error: { code: 'video-game-invalid-slug', target: 'slug', retryable: false } }, 400);
+    const seedProvider = opts.seedProvider;
+    if (!seedProvider) return c.json({ state: 'error', error: { code: 'video-game-seed-not-found', target: 'seedProvider', hint: 'Install the canonical sample and retry', retryable: true } }, 503);
+    const existing = initFlights.get(slug);
+    if (existing) {
+      const result = await existing;
+      return c.json(result.body, result.status);
+    }
+    const flight = (async () => {
+      const current = classifyGamePackage(dir);
+      if (current.state === 'initialized') return { status: 200, body: { ...current, initialized: false } };
+      if (current.state === 'inconsistent') {
+        return { status: 409, body: { ...current, initialized: false, error: { code: 'video-game-package-inconsistent', target: current.missing.join(',') || 'package', retryable: false } } };
+      }
+      try {
+        const seed = await seedProvider({ slug });
+        initializeGamePackage(dir, slug, seed);
+        return { status: 200, body: { ...classifyGamePackage(dir), initialized: true } };
+      } catch (error) {
+        return { status: 500, body: { state: 'error', initialized: false, error: { code: 'video-game-initialization-failed', target: 'package', hint: String((error as Error)?.message ?? error), retryable: true } } };
+      }
+    })();
+    initFlights.set(slug, flight);
+    try {
+      const result = await flight;
+      return c.json(result.body, result.status);
+    } finally { initFlights.delete(slug); }
+  };
+  r.post('/games/:slug/package/initialize', initialize);
+  r.post('/games/:slug/initialize', initialize);
 
   r.put('/games/:slug/package', async (c) => {
     const slug = c.req.param('slug');

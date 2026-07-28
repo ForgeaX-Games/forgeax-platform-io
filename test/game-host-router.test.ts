@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, rm, readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { createGameHostRouter } from '../src/api/game-host';
 
 // game-host round-trips a game package through .forgeax/games/<slug>/ and tags
@@ -34,6 +35,12 @@ afterAll(async () => {
 });
 
 const gameRoot = () => resolve(tmp, '.forgeax', 'games', SLUG);
+const canonicalRoot = resolve(import.meta.dir, '../../games/game-nodia-fighting');
+const canonicalSeed = () => ({
+  project: { id: 'init-game', title: 'init-game', platform: 'wb-game-video' },
+  blueprint: JSON.parse(readFileSync(resolve(canonicalRoot, 'blueprint.json'), 'utf-8')),
+  assetsManifest: JSON.parse(readFileSync(resolve(canonicalRoot, 'assets/manifest.json'), 'utf-8')),
+});
 
 describe('PUT/GET /games/:slug/package', () => {
   test('PUT writes project.json + blueprint.json + assets/manifest.json', async () => {
@@ -115,6 +122,55 @@ describe('PUT/GET /games/:slug/package', () => {
     expect(res.status).toBe(400);
     expect(await readFile(manifestPath, 'utf-8')).toBe('{broken');
     await writeFile(manifestPath, JSON.stringify({ version: 2, assets: [] }));
+  });
+});
+
+describe('canonical initialization', () => {
+  const INIT_SLUG = 'init-game';
+  test('classifies empty package and initializes canonical seed once under concurrency', async () => {
+    const seed = canonicalSeed();
+    const initRouter = createGameHostRouter({ seedProvider: async () => { await new Promise((r) => setTimeout(r, 5)); return seed; } });
+    const status = await (await initRouter.request(`/games/${INIT_SLUG}/package/status`)).json();
+    expect(status.state).toBe('uninitialized');
+    const responses = await Promise.all([
+      initRouter.request(`/games/${INIT_SLUG}/package/initialize`, { method: 'POST' }),
+      initRouter.request(`/games/${INIT_SLUG}/package/initialize`, { method: 'POST' }),
+    ]);
+    expect(responses.map((r) => r.status)).toEqual([200, 200]);
+    expect((await responses[0].json()).initialized).toBe(true);
+    expect((await responses[1].json()).initialized).toBe(true);
+    expect((await (await initRouter.request(`/games/${INIT_SLUG}/package/status`)).json()).state).toBe('initialized');
+    expect((await (await initRouter.request(`/games/${INIT_SLUG}/package/status`)).json()).state).toBe('initialized');
+    const initialized = await (await initRouter.request(`/games/${INIT_SLUG}/package`)).json();
+    expect(initialized.assetsManifest.version).toBe(2);
+    expect(initialized.assetsManifest.assets).toHaveLength(31);
+    expect(initialized.assetsManifest.assets.some((asset: { id: string }) => asset.id === 'qinggongjizhisi')).toBe(true);
+  });
+
+  test('rejects a mismatched canonical seed and leaves the package empty', async () => {
+    const badSlug = 'bad-seed-game';
+    const badSeed = canonicalSeed();
+    badSeed.assetsManifest.assets = badSeed.assetsManifest.assets.slice(0, 30);
+    const initRouter = createGameHostRouter({ seedProvider: async () => badSeed });
+    const res = await initRouter.request(`/games/${badSlug}/package/initialize`, { method: 'POST' });
+    expect(res.status).toBe(500);
+    expect((await res.json()).error.code).toBe('video-game-initialization-failed');
+    expect(existsSync(resolve(tmp, '.forgeax', 'games', badSlug, 'project.json'))).toBe(false);
+    expect(existsSync(resolve(tmp, '.forgeax', 'games', badSlug, 'blueprint.json'))).toBe(false);
+    expect(existsSync(resolve(tmp, '.forgeax', 'games', badSlug, 'assets', 'manifest.json'))).toBe(false);
+  });
+
+  test('partial package is reported and never overwritten', async () => {
+    const partialSlug = 'partial-game';
+    const partialRoot = resolve(tmp, '.forgeax', 'games', partialSlug);
+    await mkdir(partialRoot, { recursive: true });
+    await writeFile(resolve(partialRoot, 'project.json'), JSON.stringify({ id: partialSlug }));
+    const initRouter = createGameHostRouter({ seedProvider: async () => ({ blueprint: {}, assetsManifest: { version: 2, assets: [] } }) });
+    const res = await initRouter.request(`/games/${partialSlug}/package/initialize`, { method: 'POST' });
+    expect(res.status).toBe(409);
+    expect((await res.json()).state).toBe('inconsistent');
+    expect(JSON.parse(await readFile(resolve(partialRoot, 'project.json'), 'utf-8')).id).toBe(partialSlug);
+    await rm(partialRoot, { recursive: true, force: true });
   });
 });
 

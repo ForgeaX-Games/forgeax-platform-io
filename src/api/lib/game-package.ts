@@ -15,7 +15,7 @@
 // Writes are atomic-per-file (temp file + rename) so a crashed PUT never leaves
 // a half-written blueprint on disk.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const PROJECT_FILE = 'project.json';
@@ -36,8 +36,47 @@ export interface WritePackageInput {
   /** Optional; when omitted, keep existing manifest or write an empty table. */
   assetsManifest?: unknown;
 }
+export type GamePackageState = 'uninitialized' | 'initialized' | 'inconsistent';
+export interface GamePackageClassification { state: GamePackageState; missing: string[] }
 
 export class GamePackageValidationError extends Error {}
+
+/** Canonical wb-game-video initialization contract. */
+export function validateCanonicalVideoSeed(input: WritePackageInput): void {
+  if (!isCanonicalAssetManifest(input.assetsManifest)) {
+    throw new GamePackageValidationError('canonical seed manifest must be version 2');
+  }
+  const manifest = input.assetsManifest as { version: number; assets: Array<Record<string, unknown>> };
+  if (manifest.version !== 2 || manifest.assets.length !== 31) {
+    throw new GamePackageValidationError(`canonical seed manifest must contain exactly 31 assets (got ${manifest.assets.length})`);
+  }
+  if (!manifest.assets.some((asset) => asset.id === 'qinggongjizhisi')) {
+    throw new GamePackageValidationError('canonical seed manifest is missing qinggongjizhisi');
+  }
+  const refs = collectVideoRefs(input.blueprint);
+  if (refs.size !== 30) {
+    throw new GamePackageValidationError(`canonical blueprint must contain exactly 30 unique video refs (got ${refs.size})`);
+  }
+  const ids = new Set(manifest.assets.map((asset) => asset.id));
+  const missing = [...refs].filter((ref) => !ids.has(ref));
+  if (missing.length) throw new GamePackageValidationError(`canonical blueprint references missing assets: ${missing.join(', ')}`);
+}
+
+function collectVideoRefs(value: unknown, refs = new Set<string>()): Set<string> {
+  if (!value || typeof value !== 'object') return refs;
+  if (Array.isArray(value)) {
+    for (const item of value) collectVideoRefs(item, refs);
+    return refs;
+  }
+  const record = value as Record<string, unknown>;
+  const media = record.media;
+  if (media && typeof media === 'object' && !Array.isArray(media)) {
+    const mediaRecord = media as Record<string, unknown>;
+    if (mediaRecord.kind === 'VIDEO' && typeof mediaRecord.ref === 'string') refs.add(mediaRecord.ref);
+  }
+  for (const child of Object.values(record)) collectVideoRefs(child, refs);
+  return refs;
+}
 
 function isCanonicalAssetManifest(value: unknown): value is Record<string, unknown> & { version: 2; assets: unknown[] } {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -102,6 +141,28 @@ export function readGamePackage(dir: string): GamePackage {
     blueprint: readJson(resolve(dir, BLUEPRINT_FILE)),
     assetsManifest: readJson(resolve(dir, ...MANIFEST_SEGS)),
   };
+}
+
+export function classifyGamePackage(dir: string): GamePackageClassification {
+  const files = [PROJECT_FILE, BLUEPRINT_FILE, 'assets/manifest.json'];
+  const missing = files.filter((file) => !existsSync(resolve(dir, file)));
+  if (missing.length === files.length) return { state: 'uninitialized', missing };
+  if (missing.length) return { state: 'inconsistent', missing };
+  const pkg = readGamePackage(dir);
+  if (pkg.project == null || pkg.blueprint == null || !isCanonicalAssetManifest(pkg.assetsManifest)) return { state: 'inconsistent', missing: [] };
+  return { state: 'initialized', missing: [] };
+}
+
+export function initializeGamePackage(dir: string, slug: string, seed: WritePackageInput): void {
+  validateCanonicalVideoSeed(seed);
+  const files = [PROJECT_FILE, BLUEPRINT_FILE, 'assets/manifest.json'];
+  const before = files.map((file) => { const path = resolve(dir, file); return [path, existsSync(path) ? readFileSync(path, 'utf-8') : null] as const; });
+  try { writeGamePackage(dir, slug, seed); } catch (error) {
+    for (const [path, content] of before) { if (content == null) { try { unlinkSync(path); } catch {} } else writeFileSync(path, content); }
+    throw error;
+  }
+  const written = readGamePackage(dir);
+  validateCanonicalVideoSeed({ project: written.project ?? undefined, blueprint: written.blueprint, assetsManifest: written.assetsManifest ?? undefined });
 }
 
 /**

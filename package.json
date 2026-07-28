@@ -12,7 +12,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "lint:boundaries": "depcruise --config .dependency-cruiser.cjs src || true"
+    "lint:boundaries": "depcruise --config .dependency-cruiser.cjs src"
   },
   "dependencies": {
     "hono": "^4.6.0"
