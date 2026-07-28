@@ -80,6 +80,14 @@ function componentFile(slug: string, rel: string): string | null {
 export function createGameHostRouter(opts: GameHostOptions = {}) {
   const r = new Hono();
 
+  const createPreparedVersion = async (slug: string, dir: string, message?: string) => {
+    if (opts.beforeVersion) {
+      const project = readGamePackage(dir).project;
+      await opts.beforeVersion({ slug, gameDir: dir, project });
+    }
+    return createVersion(dir, message);
+  };
+
   r.get('/games/:slug/package', (c) => {
     const dir = gameDir(c.req.param('slug'));
     if (!dir) return c.json({ error: 'invalid slug' }, 400);
@@ -106,14 +114,21 @@ export function createGameHostRouter(opts: GameHostOptions = {}) {
     }
     const flight = (async () => {
       const current = classifyGamePackage(dir);
-      if (current.state === 'initialized') return { status: 200, body: { ...current, initialized: false } };
       if (current.state === 'inconsistent') {
         return { status: 409, body: { ...current, initialized: false, error: { code: 'video-game-package-inconsistent', target: current.missing.join(',') || 'package', retryable: false } } };
       }
       try {
+        if (current.state === 'initialized') {
+          const existingVersion = currentVersion(dir);
+          const version = existingVersion.tag
+            ? existingVersion
+            : await createPreparedVersion(slug, dir, '[game-host] Initial video game version');
+          return { status: 200, body: { ...current, initialized: false, version } };
+        }
         const seed = await seedProvider({ slug });
         initializeGamePackage(dir, slug, seed);
-        return { status: 200, body: { ...classifyGamePackage(dir), initialized: true } };
+        const version = await createPreparedVersion(slug, dir, '[game-host] Initial video game version');
+        return { status: 200, body: { ...classifyGamePackage(dir), initialized: true, version } };
       } catch (error) {
         return { status: 500, body: { state: 'error', initialized: false, error: { code: 'video-game-initialization-failed', target: 'package', hint: String((error as Error)?.message ?? error), retryable: true } } };
       }
@@ -163,13 +178,7 @@ export function createGameHostRouter(opts: GameHostOptions = {}) {
       /* body is optional */
     }
     try {
-      // Version-prepare hook (e.g. sync platform components into the game dir)
-      // runs before git add -A so the snapshot includes it.
-      if (opts.beforeVersion) {
-        const project = readGamePackage(dir).project;
-        await opts.beforeVersion({ slug, gameDir: dir, project });
-      }
-      return c.json(createVersion(dir, message));
+      return c.json(await createPreparedVersion(slug, dir, message));
     } catch (e) {
       return c.json({ error: String((e as Error)?.message ?? e) }, 500);
     }

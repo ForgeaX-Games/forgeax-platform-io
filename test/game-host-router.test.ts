@@ -129,7 +129,11 @@ describe('canonical initialization', () => {
   const INIT_SLUG = 'init-game';
   test('classifies empty package and initializes canonical seed once under concurrency', async () => {
     const seed = canonicalSeed();
-    const initRouter = createGameHostRouter({ seedProvider: async () => { await new Promise((r) => setTimeout(r, 5)); return seed; } });
+    let prepareCalls = 0;
+    const initRouter = createGameHostRouter({
+      seedProvider: async () => { await new Promise((r) => setTimeout(r, 5)); return seed; },
+      beforeVersion: () => { prepareCalls += 1; },
+    });
     const status = await (await initRouter.request(`/games/${INIT_SLUG}/package/status`)).json();
     expect(status.state).toBe('uninitialized');
     const responses = await Promise.all([
@@ -145,6 +149,18 @@ describe('canonical initialization', () => {
     expect(initialized.assetsManifest.version).toBe(2);
     expect(initialized.assetsManifest.assets).toHaveLength(31);
     expect(initialized.assetsManifest.assets.some((asset: { id: string }) => asset.id === 'qinggongjizhisi')).toBe(true);
+    expect(prepareCalls).toBe(1);
+    const current = await (await initRouter.request(`/games/${INIT_SLUG}/versions/current`)).json();
+    expect(current.tag).toBe('v1');
+    const v1Package = await (await initRouter.request(`/games/${INIT_SLUG}/versions/v1/package`)).json();
+    expect(v1Package.blueprint).toEqual(seed.blueprint);
+    expect(v1Package.assetsManifest).toEqual(seed.assetsManifest);
+
+    const repeated = await initRouter.request(`/games/${INIT_SLUG}/package/initialize`, { method: 'POST' });
+    expect(repeated.status).toBe(200);
+    expect((await repeated.json()).initialized).toBe(false);
+    expect(prepareCalls).toBe(1);
+    expect((await (await initRouter.request(`/games/${INIT_SLUG}/versions`)).json()).versions).toHaveLength(1);
   });
 
   test('rejects a mismatched canonical seed and leaves the package empty', async () => {
@@ -158,6 +174,31 @@ describe('canonical initialization', () => {
     expect(existsSync(resolve(tmp, '.forgeax', 'games', badSlug, 'project.json'))).toBe(false);
     expect(existsSync(resolve(tmp, '.forgeax', 'games', badSlug, 'blueprint.json'))).toBe(false);
     expect(existsSync(resolve(tmp, '.forgeax', 'games', badSlug, 'assets', 'manifest.json'))).toBe(false);
+  });
+
+  test('retries the initial v1 when package files were written before version preparation failed', async () => {
+    const retrySlug = 'retry-initial-version';
+    let failPreparation = true;
+    const initRouter = createGameHostRouter({
+      seedProvider: async () => canonicalSeed(),
+      beforeVersion: () => {
+        if (failPreparation) {
+          failPreparation = false;
+          throw new Error('temporary preparation failure');
+        }
+      },
+    });
+
+    const failed = await initRouter.request(`/games/${retrySlug}/package/initialize`, { method: 'POST' });
+    expect(failed.status).toBe(500);
+    expect((await failed.json()).error.code).toBe('video-game-initialization-failed');
+    expect((await (await initRouter.request(`/games/${retrySlug}/package/status`)).json()).state).toBe('initialized');
+    expect((await (await initRouter.request(`/games/${retrySlug}/versions/current`)).json()).tag).toBeNull();
+
+    const retried = await initRouter.request(`/games/${retrySlug}/package/initialize`, { method: 'POST' });
+    expect(retried.status).toBe(200);
+    expect((await retried.json()).version.tag).toBe('v1');
+    expect((await (await initRouter.request(`/games/${retrySlug}/versions/current`)).json()).tag).toBe('v1');
   });
 
   test('partial package is reported and never overwritten', async () => {
