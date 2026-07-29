@@ -60,7 +60,7 @@ interface Entry {
   name: string;
   isDir: boolean;
   hasForgeaX: boolean;
-  hasGames: boolean;
+  hasGame: boolean;
 }
 
 /** PowerShell driver for the Windows folder dialog.
@@ -265,19 +265,19 @@ export function createFsBrowserRouter(): Hono {
     }))).filter((d): d is NonNullable<typeof d> => d !== null);
     const entries: Entry[] = await Promise.all(visibleDirs.map(async (d) => {
       const child = join(abs, d.name);
-      const [hasForgeaX, hasForgeaxGames, hasGamesTop] = await Promise.all([
+      const [hasForgeaX, hasForgeJson, hasMainTs] = await Promise.all([
         exists(join(child, '.forgeax')),
-        exists(join(child, '.forgeax', 'games')),
-        exists(join(child, 'games')),
+        exists(join(child, 'forge.json')),
+        exists(join(child, 'main.ts')),
       ]);
-      return { name: d.name, isDir: true, hasForgeaX, hasGames: hasForgeaxGames || hasGamesTop };
+      return { name: d.name, isDir: true, hasForgeaX, hasGame: hasForgeJson || hasMainTs };
     }));
     entries.sort((a, b) => a.name.localeCompare(b.name));
 
-    const [selfHasForgeaX, selfHasForgeaxGames, selfHasGamesTop] = await Promise.all([
+    const [selfHasForgeaX, selfHasForgeJson, selfHasMainTs] = await Promise.all([
       exists(join(abs, '.forgeax')),
-      exists(join(abs, '.forgeax', 'games')),
-      exists(join(abs, 'games')),
+      exists(join(abs, 'forge.json')),
+      exists(join(abs, 'main.ts')),
     ]);
 
     const parent = dirname(abs);
@@ -288,7 +288,7 @@ export function createFsBrowserRouter(): Hono {
       parentDisplay: parent === abs ? null : friendlyPath(parent),
       name: basename(abs) || abs,
       selfHasForgeaX,
-      selfHasGames: selfHasForgeaxGames || selfHasGamesTop,
+      selfHasGame: selfHasForgeJson || selfHasMainTs,
       entries,
     });
   });

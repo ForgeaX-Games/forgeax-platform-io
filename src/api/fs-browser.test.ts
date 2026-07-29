@@ -19,6 +19,11 @@ describe('GET /browse', () => {
     await mkdir(targetDir);
     await mkdir(join(root, 'real-dir'));
     await mkdir(join(root, '.hidden-dir'));
+    await mkdir(join(root, 'forge-game'));
+    await writeFile(join(root, 'forge-game', 'forge.json'), '{}');
+    await mkdir(join(root, 'main-game'));
+    await writeFile(join(root, 'main-game', 'main.ts'), 'export {};');
+    await mkdir(join(root, 'legacy-games-container', 'games'), { recursive: true });
     await writeFile(targetFile, 'file');
     await symlink(targetDir, join(root, 'linked-dir'), 'dir');
     await symlink(targetFile, join(root, 'linked-file'), 'file');
@@ -27,14 +32,30 @@ describe('GET /browse', () => {
     const response = await createFsBrowserRouter().request(
       `http://localhost/browse?dir=${encodeURIComponent(root)}`,
     );
-    const body = await response.json() as { entries: Array<{ name: string }> };
+    const body = await response.json() as {
+      entries: Array<{ name: string; hasGame: boolean }>;
+      selfHasGame: boolean;
+    };
 
     expect(response.status).toBe(200);
     expect(body.entries.map((entry) => entry.name)).toEqual([
       '.hidden-dir',
+      'forge-game',
+      'legacy-games-container',
       'linked-dir',
+      'main-game',
       'real-dir',
       'target-dir',
     ]);
+    expect(Object.fromEntries(body.entries.map((entry) => [entry.name, entry.hasGame]))).toEqual({
+      '.hidden-dir': false,
+      'forge-game': true,
+      'legacy-games-container': false,
+      'linked-dir': false,
+      'main-game': true,
+      'real-dir': false,
+      'target-dir': false,
+    });
+    expect(body.selfHasGame).toBe(false);
   });
 });

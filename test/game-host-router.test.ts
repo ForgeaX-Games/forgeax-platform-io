@@ -3,7 +3,6 @@ import { mkdtemp, mkdir, rm, readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
-import { readFileSync } from 'node:fs';
 import { createGameHostRouter } from '../src/api/game-host';
 
 // game-host round-trips a game package through .forgeax/games/<slug>/ and tags
@@ -35,11 +34,19 @@ afterAll(async () => {
 });
 
 const gameRoot = () => resolve(tmp, '.forgeax', 'games', SLUG);
-const canonicalRoot = resolve(import.meta.dir, '../../games/game-nodia-fighting');
+const canonicalAssetIds = [
+  'qinggongjizhisi',
+  ...Array.from({ length: 30 }, (_, index) => `video-${index + 1}`),
+];
 const canonicalSeed = () => ({
   project: { id: 'init-game', title: 'init-game', platform: 'wb-game-video' },
-  blueprint: JSON.parse(readFileSync(resolve(canonicalRoot, 'blueprint.json'), 'utf-8')),
-  assetsManifest: JSON.parse(readFileSync(resolve(canonicalRoot, 'assets/manifest.json'), 'utf-8')),
+  blueprint: {
+    clips: canonicalAssetIds.slice(0, 30).map((ref) => ({ media: { kind: 'VIDEO', ref } })),
+  },
+  assetsManifest: {
+    version: 2,
+    assets: canonicalAssetIds.map((id) => ({ id, kind: 'video' })),
+  },
 });
 
 describe('PUT/GET /games/:slug/package', () => {
