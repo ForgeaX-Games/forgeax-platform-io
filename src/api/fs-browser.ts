@@ -1,8 +1,8 @@
 /**
  * Filesystem browser endpoint — lets the Studio UI walk the server's
- * filesystem to pick a directory as a workspace. Separate from /api/files
+ * filesystem to pick a game directory. Separate from /api/files
  * (which is whitelisted to FORGEAX_PROJECT_ROOT/{games,packages,.forgeax/games}
- * via resolveSafePath) because workspace selection by definition needs to
+ * via resolveSafePath) because opening a game directory may need to
  * reach OUTSIDE the current project root.
  *
  * Safety:
@@ -10,7 +10,7 @@
  *   - absolute path required
  *   - reject NUL byte
  *   - directory blocklist (system mounts that have no business being a
- *     ForgeaX workspace and that could surface sensitive content)
+ *     ForgeaX game and that could surface sensitive content)
  *
  *   GET  /api/fs/browse?dir=<abs|~/foo>
  *   POST /api/fs/pick-directory — native OS folder dialog (local server only)
@@ -242,7 +242,7 @@ export function createFsBrowserRouter(): Hono {
 
     // readdir({withFileTypes:true}) replaces a per-entry statSync — we get
     // dirent.isDirectory() for free. The 3 existsSync probes per dir are
-    // launched concurrently with Promise.all so the workspace picker can
+    // launched concurrently with Promise.all so the game-directory picker can
     // browse a 100-entry dir without serializing 400 stat calls.
     let dirents;
     try {
@@ -250,7 +250,19 @@ export function createFsBrowserRouter(): Hono {
     } catch (e) {
       return c.json({ error: (e as Error).message }, 500);
     }
-    const visibleDirs = dirents.filter((d) => d.isDirectory() && !d.name.startsWith('.'));
+    // This is an explicit game-directory picker, not a workspace browser. Dot
+    // directories are valid user targets here: `.forgeax` is the canonical
+    // Studio runtime tree, and a user may also open any other hidden game dir.
+    const visibleDirs = (await Promise.all(dirents.map(async (d) => {
+      if (d.isDirectory()) return d;
+      if (!d.isSymbolicLink()) return null;
+      try {
+        return (await stat(join(abs, d.name))).isDirectory() ? d : null;
+      } catch {
+        // Dangling or unreadable links are not browseable directories.
+        return null;
+      }
+    }))).filter((d): d is NonNullable<typeof d> => d !== null);
     const entries: Entry[] = await Promise.all(visibleDirs.map(async (d) => {
       const child = join(abs, d.name);
       const [hasForgeaX, hasForgeaxGames, hasGamesTop] = await Promise.all([

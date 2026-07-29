@@ -1,7 +1,7 @@
 /**
  * Asset root resolver — the single anchor for the server's APP-bundled
  * read-only assets (plugin dist trees, interface SPA dist, builtin kits,
- * brand). This is distinct from the user's WRITABLE workspace
+ * brand). This is distinct from the user's writable instance root
  * (`FORGEAX_PROJECT_ROOT`, see api/lib/safe-path.ts) — never conflate them.
  *
  * Why this exists (desktop packaging):

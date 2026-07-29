@@ -30,7 +30,7 @@ export function resolveSafePath(root: string, rel: string): string | null {
   if (typeof rel !== 'string' || rel.length === 0) return null;
   if (rel.includes('\0')) return null;
 
-  // Absolute paths: accept only when they fall INSIDE the project root, by
+  // Absolute paths: accept only when they fall INSIDE the instance root, by
   // folding them to a project-relative path and letting the whitelist below
   // gate them exactly like a relative input. Why: the file-activity ledger
   // records ABSOLUTE paths for every file an agent touched — including engine

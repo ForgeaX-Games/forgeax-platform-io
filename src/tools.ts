@@ -28,16 +28,12 @@ export {
   type TreeNode,
 } from './api/lib/io';
 export {
-  knownProjectsFile,
-  loadKnown,
-  addKnown,
-  removeKnown,
-  type KnownProject,
-} from './api/lib/known-projects';
-export {
-  scaffoldDefaultWorkspace,
-  type ScaffoldResult,
-} from './api/lib/scaffold-default-workspace';
+  knownGamesFile,
+  loadKnownGames,
+  addKnownGame,
+  removeKnownGame,
+  type KnownGame,
+} from './api/lib/known-games';
 export { assetRoot, mp, interfaceDist } from './lib/asset-root';
 export { readUninstalledAgentIds, writeUninstalledAgentIds } from './api/lib/agent-prefs';
 export {
