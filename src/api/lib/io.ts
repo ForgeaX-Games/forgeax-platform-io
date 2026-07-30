@@ -48,6 +48,13 @@ const EXT_KIND: Record<string, { kind: FileKind; mime: string }> = {
   '.max':  { kind: 'binary', mime: 'application/octet-stream' },
   '.mb':   { kind: 'binary', mime: 'application/octet-stream' },
   '.ma':   { kind: 'binary', mime: 'application/octet-stream' },
+  // Fonts are binary: decoding them as UTF-8 produced a multi-megabyte
+  // garbage string that froze the content-browser preview. The UI loads the
+  // bytes via /api/files/raw (FontFace) instead.
+  '.ttf':  { kind: 'binary', mime: 'font/ttf' },
+  '.otf':  { kind: 'binary', mime: 'font/otf' },
+  '.woff': { kind: 'binary', mime: 'font/woff' },
+  '.woff2': { kind: 'binary', mime: 'font/woff2' },
 };
 
 export function classify(path: string): { kind: FileKind; mime: string } {
