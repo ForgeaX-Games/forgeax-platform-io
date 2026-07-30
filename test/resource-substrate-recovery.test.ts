@@ -102,4 +102,38 @@ describe('filesystem startup recovery', () => {
       }
     });
   }
+
+  test('recovery keeps a cross-resource mutation at one complete revision', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'resource-substrate-cross-resource-'));
+    try {
+      const root = await openRoot(directory);
+      const before = await root.readSnapshot();
+      expect(before.ok).toBe(true);
+      if (!before.ok) throw before.error;
+      const store = createFilesystemResourceStore({ directory });
+      store.failNext('terminal-write', 'terminal record interrupted');
+      const failingRoot = await openResourceRoot({ rootId: 'game-main', store });
+      expect(failingRoot.ok).toBe(true);
+      if (!failingRoot.ok) throw failingRoot.error;
+      const failed = await failingRoot.value.commit({
+        identity: 'cross-resource-failure',
+        expectedRevision: before.value.revision,
+        changes: [
+          { kind: 'put', resourceId: 'assets/a.bin', bytes: Uint8Array.from([1]) },
+          { kind: 'put', resourceId: 'assets/b.bin', bytes: Uint8Array.from([2]) },
+        ],
+      });
+      expect(failed.ok).toBe(false);
+
+      const recovered = await openRoot(directory);
+      const snapshot = await recovered.readSnapshot();
+      expect(snapshot.ok).toBe(true);
+      if (!snapshot.ok) throw snapshot.error;
+      const complete = snapshot.value.active['assets/a.bin'] !== undefined && snapshot.value.active['assets/b.bin'] !== undefined;
+      const empty = snapshot.value.active['assets/a.bin'] === undefined && snapshot.value.active['assets/b.bin'] === undefined;
+      expect(complete || empty).toBe(true);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });

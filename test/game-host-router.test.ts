@@ -38,7 +38,11 @@ const canonicalAssetIds = [
   'qinggongjizhisi',
   ...Array.from({ length: 30 }, (_, index) => `video-${index + 1}`),
 ];
-const canonicalSeed = () => ({
+const canonicalSeed = (): {
+  project: Record<string, unknown>;
+  blueprint: unknown;
+  assetsManifest: { version: number; assets: Array<{ id: string; kind: string }> };
+} => ({
   project: { id: 'init-game', title: 'init-game', platform: 'wb-game-video' },
   blueprint: {
     clips: canonicalAssetIds.slice(0, 30).map((ref) => ({ media: { kind: 'VIDEO', ref } })),
@@ -107,7 +111,7 @@ describe('PUT/GET /games/:slug/package', () => {
     expect(get.assetsManifest).toEqual(assetsManifest);
   });
 
-  test('rejects a non-canonical asset manifest', async () => {
+  test('rejects an invalid asset manifest', async () => {
     const res = await router.request(`/games/${SLUG}/package`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
@@ -132,7 +136,7 @@ describe('PUT/GET /games/:slug/package', () => {
   });
 });
 
-describe('canonical initialization', () => {
+describe('video game initialization', () => {
   const INIT_SLUG = 'init-game';
   test('classifies empty package and initializes canonical seed once under concurrency', async () => {
     const seed = canonicalSeed();
@@ -170,10 +174,10 @@ describe('canonical initialization', () => {
     expect((await (await initRouter.request(`/games/${INIT_SLUG}/versions`)).json()).versions).toHaveLength(1);
   });
 
-  test('rejects a mismatched canonical seed and leaves the package empty', async () => {
+  test('rejects a seed whose blueprint references a missing asset and leaves the package empty', async () => {
     const badSlug = 'bad-seed-game';
     const badSeed = canonicalSeed();
-    badSeed.assetsManifest.assets = badSeed.assetsManifest.assets.slice(0, 30);
+    badSeed.assetsManifest.assets = badSeed.assetsManifest.assets.slice(1);
     const initRouter = createGameHostRouter({ seedProvider: async () => badSeed });
     const res = await initRouter.request(`/games/${badSlug}/package/initialize`, { method: 'POST' });
     expect(res.status).toBe(500);
@@ -181,6 +185,20 @@ describe('canonical initialization', () => {
     expect(existsSync(resolve(tmp, '.forgeax', 'games', badSlug, 'project.json'))).toBe(false);
     expect(existsSync(resolve(tmp, '.forgeax', 'games', badSlug, 'blueprint.json'))).toBe(false);
     expect(existsSync(resolve(tmp, '.forgeax', 'games', badSlug, 'assets', 'manifest.json'))).toBe(false);
+  });
+
+  test('accepts an empty blueprint while preserving the seeded assets', async () => {
+    const emptySlug = 'empty-blueprint-game';
+    const seed = canonicalSeed();
+    seed.blueprint = { graph: { nodes: [], edges: [] } };
+    const initRouter = createGameHostRouter({ seedProvider: async () => seed });
+
+    const res = await initRouter.request(`/games/${emptySlug}/package/initialize`, { method: 'POST' });
+
+    expect(res.status).toBe(200);
+    const initialized = await (await initRouter.request(`/games/${emptySlug}/package`)).json();
+    expect(initialized.blueprint).toEqual(seed.blueprint);
+    expect(initialized.assetsManifest.assets).toHaveLength(31);
   });
 
   test('retries the initial v1 when package files were written before version preparation failed', async () => {

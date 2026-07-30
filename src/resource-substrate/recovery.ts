@@ -8,6 +8,23 @@ import { createResourceError, type ResourceError, type ResourceResult } from './
 
 export type PreparedRecoveryDecision = 'keep-before' | 'keep-after';
 
+export interface ObserverRecoveryIntent {
+  readonly kind: 'scoped-reconcile';
+  readonly rootId: string;
+  readonly scope: string;
+  readonly reason: 'observer-gap' | 'observer-invalidation' | 'observer-error' | 'vcs-burst' | 'late-root';
+  readonly lastKnownGoodRevision: string;
+}
+
+export function createObserverRecoveryIntent(input: {
+  readonly rootId: string;
+  readonly scope: string;
+  readonly reason: ObserverRecoveryIntent['reason'];
+  readonly lastKnownGoodRevision: string;
+}): ObserverRecoveryIntent {
+  return Object.freeze({ ...input, kind: 'scoped-reconcile' as const });
+}
+
 export function classifyPreparedRecovery(
   beforeRevision: string,
   currentRevision: string,

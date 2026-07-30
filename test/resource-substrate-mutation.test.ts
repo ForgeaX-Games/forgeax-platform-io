@@ -129,4 +129,33 @@ describe('resource manifest mutation reducer', () => {
     expect(first).toEqual(second);
     expect(first.requestDigest).toBe(second.requestDigest);
   });
+
+  test('trash and restore preserve opaque bytes and revision boundaries', () => {
+    const seeded = apply(
+      createInitialManifest(revision('revision-0')),
+      mutation([{ kind: 'put', resourceId: 'assets/item.bin', bytes: bytes(4, 5) }]),
+    );
+    const trashed = apply(
+      seeded.snapshot,
+      mutation(
+        [{ kind: 'trash', resourceId: 'assets/item.bin' }],
+        'mutation-trash',
+        seeded.snapshot.revision,
+      ),
+    );
+    expect(trashed.snapshot.active['assets/item.bin']).toBeUndefined();
+    expect(trashed.snapshot.trash[0]?.bytes).toEqual(bytes(4, 5));
+
+    const restored = apply(
+      trashed.snapshot,
+      mutation(
+        [{ kind: 'restore', resourceId: 'assets/item.bin' }],
+        'mutation-restore',
+        trashed.snapshot.revision,
+      ),
+    );
+    expect(restored.snapshot.active['assets/item.bin']).toEqual(bytes(4, 5));
+    expect(restored.snapshot.trash).toEqual([]);
+    expect(restored.snapshot.revision).not.toBe(trashed.snapshot.revision);
+  });
 });

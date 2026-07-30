@@ -75,4 +75,13 @@ describe('POST /api/files — mkdir branch', () => {
     });
     expect(res.status).toBe(400);
   });
+
+  test('resource paths cannot escape the confined game root', async () => {
+    const response = await router.request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: `${slug}/../outside.bin`, content: 'blocked' }),
+    });
+    expect(response.status).toBe(400);
+  });
 });
