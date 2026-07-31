@@ -18,10 +18,7 @@ module.exports = {
         '后端 L1 基建不得依赖任何 @forgeax/* 包(零上行)。它是最通用的底座,' +
         '只能依赖第三方(hono)与 node 内建。',
       from: { path: '^src/' },
-      to: {
-        path: '^@forgeax/',
-        pathNot: '^@forgeax/workbench-host/(contracts|game-host)$',
-      },
+      to: { path: '^@forgeax/' },
     },
     {
       name: 'no-circular',

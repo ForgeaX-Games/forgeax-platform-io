@@ -7,8 +7,3 @@
 export * from './routers';
 export * from './tools';
 export * from './resource-substrate';
-export { createForgeaxVersionAdapter } from './workbench/version-adapter';
-export {
-  createForgeaxWorkspaceAdapter,
-  type ForgeaxWorkspaceAdapterOptions,
-} from './workbench/workspace-adapter';
