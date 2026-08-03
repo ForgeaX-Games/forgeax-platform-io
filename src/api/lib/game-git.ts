@@ -49,6 +49,11 @@ function ensureRepo(dir: string): void {
   git(dir, ['init']);
 }
 
+/** Public adapter seam: initialize the existing per-game repository in place. */
+export function ensureGameRepository(dir: string): void {
+  ensureRepo(dir);
+}
+
 /**
  * Ensure the game repo has a `.gitignore` covering runtime state, so versions
  * don't capture agent sessions / logs / caches. Idempotent + non-destructive:
@@ -156,6 +161,8 @@ export interface CurrentVersion {
 
 export interface VersionEntry {
   tag: string;
+  /** Commit referenced by the annotated tag. */
+  commitHash: string;
   /** annotated-tag creation time (unix seconds). */
   createdAt: number;
   /** tag message (subject). */
@@ -170,7 +177,7 @@ export function listVersions(dir: string): VersionEntry[] {
     out = git(dir, [
       'for-each-ref',
       'refs/tags/v*',
-      '--format=%(refname:short)\t%(creatordate:unix)\t%(subject)',
+      '--format=%(refname:short)\t%(*objectname)\t%(creatordate:unix)\t%(subject)',
     ]);
   } catch {
     return [];
@@ -180,8 +187,8 @@ export function listVersions(dir: string): VersionEntry[] {
     .map((l) => l.trim())
     .filter(Boolean)
     .map((l) => {
-      const [tag, ts, ...rest] = l.split('\t');
-      return { tag, createdAt: Number(ts) || 0, message: rest.join('\t') };
+      const [tag, commitHash, ts, ...rest] = l.split('\t');
+      return { tag, commitHash, createdAt: Number(ts) || 0, message: rest.join('\t') };
     })
     .filter((v) => /^v\d+$/.test(v.tag))
     .sort((a, b) => {
@@ -242,4 +249,42 @@ export function currentVersion(dir: string): CurrentVersion {
     dirty = false;
   }
   return { tag, commitHash, dirty };
+}
+
+function assertVersionFile(tag: string, relativePath: string): void {
+  if (!/^v\d+$/.test(tag)) {
+    throw new TypeError('Version tag must use the vN format');
+  }
+  if (
+    relativePath.length === 0 ||
+    relativePath.startsWith('/') ||
+    relativePath.includes('\\') ||
+    relativePath.includes('\0') ||
+    relativePath.split('/').some((segment) => segment === '' || segment === '.' || segment === '..')
+  ) {
+    throw new TypeError('Version file must be a bounded relative path');
+  }
+}
+
+/** Read one historical file without checking out or mutating the working tree. */
+export function readGameFileAtTag(
+  dir: string,
+  tag: string,
+  relativePath: string,
+): Uint8Array | null {
+  assertVersionFile(tag, relativePath);
+  if (!hasRepo(dir)) return null;
+  try {
+    git(dir, ['rev-parse', `${tag}^{}`]);
+    return new Uint8Array(execFileSync('git', [
+      ...DISABLE_EXTERNAL_HOOKS,
+      'show',
+      `${tag}:${relativePath}`,
+    ], {
+      cwd: dir,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }));
+  } catch {
+    return null;
+  }
 }
