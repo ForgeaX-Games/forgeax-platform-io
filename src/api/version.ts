@@ -162,8 +162,44 @@ export function getVersion(): VersionInfo {
   return cached;
 }
 
+export interface VersionTag {
+  tag: string;
+  /** annotated/commit date, YYYY-MM-DD. */
+  date: string;
+  /** tag message / subject (empty for lightweight tags). */
+  message: string;
+}
+
+/** List the studio repo's `vN` release tags (newest first). Empty on failure. */
+export function getVersionTags(): VersionTag[] {
+  try {
+    let dir = process.cwd();
+    for (let i = 0; i < 8; i++) {
+      if (existsSync(resolve(dir, '.gitmodules')) && existsSync(resolve(dir, '.git'))) break;
+      dir = resolve(dir, '..');
+    }
+    const out = execSync(
+      "git for-each-ref refs/tags/v* --sort=-creatordate --format='%(refname:short)\t%(creatordate:short)\t%(subject)'",
+      { cwd: dir, encoding: 'utf-8' },
+    ).trim();
+    if (!out) return [];
+    return out
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => {
+        const [tag, date, ...rest] = l.split('\t');
+        return { tag, date: date ?? '', message: rest.join('\t') };
+      })
+      .filter((t) => t.tag);
+  } catch {
+    return [];
+  }
+}
+
 export function createVersionRouter() {
   const app = new Hono();
   app.get('/', (c) => c.json(getVersion()));
+  app.get('/tags', (c) => c.json({ tags: getVersionTags() }));
   return app;
 }
