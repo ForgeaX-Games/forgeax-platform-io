@@ -28,7 +28,7 @@ import {
 import { createVersion, currentVersion, listVersions, readPackageAtTag } from './lib/game-git';
 
 // Same slug shape wb-game-video uses; also blocks path traversal via slug.
-const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,40}$/;
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,40}$/;
 
 /** Resolve `.forgeax/games/<slug>` through the safe-path whitelist. */
 function gameDir(slug: string): string | null {

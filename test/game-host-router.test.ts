@@ -94,6 +94,11 @@ describe('PUT/GET /games/:slug/package', () => {
     expect(res.status).toBe(400);
   });
 
+  test('one-character slug follows the canonical 1-41 character contract', async () => {
+    const res = await router.request('/games/a/package/status');
+    expect(res.status).toBe(200);
+  });
+
   test('caller-provided project + manifest are persisted verbatim', async () => {
     const project = { id: SLUG, title: 'Custom', platform: 'wb-game-video', platformVersion: '1', entry: { blueprint: 'blueprint.json', components: 'dist/components' } };
     const assetsManifest = {
