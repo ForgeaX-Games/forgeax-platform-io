@@ -11,7 +11,7 @@ import {
   stat,
   unlink,
 } from 'node:fs/promises';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import type {
   GameFileCapability,
   GameVersionCapability,
@@ -20,7 +20,6 @@ import type {
   WorkspaceAdapter,
 } from '@forgeax/workbench-host/contracts';
 import { defaultProjectRoot } from '../api/lib/safe-path';
-import { resolveForgeaxGameProjection } from './game-projection';
 
 const GAME_ID = /^[a-z0-9][a-z0-9-]{1,40}$/;
 const heldLocks = new AsyncLocalStorage<ReadonlySet<string>>();
@@ -31,7 +30,6 @@ export interface ForgeaxWorkspaceAdapterOptions {
 }
 
 interface RootIdentity {
-  readonly gameRoot: string;
   readonly path: string;
   readonly realPath: string;
   readonly dev: bigint | number;
@@ -85,7 +83,6 @@ async function ensureDirectory(path: string, label: string): Promise<void> {
 }
 
 async function openRoot(
-  projectRoot: string,
   gamesRoot: string,
   gameId: string,
   create: boolean,
@@ -108,34 +105,32 @@ async function openRoot(
   if (relative(gamesRoot, path) !== gameId) {
     throw new TypeError('Game root is outside the games root');
   }
-  let entry;
-  try {
-    entry = await lstat(path);
-  } catch (error) {
-    if (!missing(error)) throw error;
-    if (!create) throw notFound();
+  if (create) {
     await ensureDirectory(path, 'Game root');
-    entry = await lstat(path);
+  } else {
+    try {
+      await assertDirectory(path, 'Game root');
+    } catch (error) {
+      if (missing(error)) throw notFound();
+      throw error;
+    }
   }
 
-  if (!entry.isDirectory() && !entry.isSymbolicLink()) {
-    throw new TypeError('Game root must be a directory');
-  }
-  const projection = resolveForgeaxGameProjection(projectRoot, gameId);
-  if (!projection) {
-    if (entry.isSymbolicLink()) {
-      throw new TypeError('Game root symbolic link is not a managed game projection');
-    }
+  const [realGamesRoot, realPath, details] = await Promise.all([
+    realpath(gamesRoot),
+    realpath(path),
+    stat(path, { bigint: true }),
+  ]);
+  const fromGames = relative(realGamesRoot, realPath);
+  if (
+    fromGames.length === 0 ||
+    isAbsolute(fromGames) ||
+    fromGames === '..' ||
+    fromGames.startsWith(`..${sep}`)
+  ) {
     throw new TypeError('Game root resolves outside the games root');
   }
-  const details = await stat(projection.authorityRoot, { bigint: true });
-  return {
-    gameRoot: projection.gameRoot,
-    path: projection.authorityRoot,
-    realPath: projection.authorityRoot,
-    dev: details.dev,
-    ino: details.ino,
-  };
+  return { path, realPath, dev: details.dev, ino: details.ino };
 }
 
 async function assertSameRoot(root: RootIdentity): Promise<void> {
@@ -300,8 +295,6 @@ function createVersions(
   return {
     ensureRepository: () => checked(() => options.versioning.ensureRepository(root.path)),
     createVersion: (message) => checked(() => options.versioning.createVersion(root.path, message)),
-    createCheckpoint: (message) =>
-      checked(() => options.versioning.createCheckpoint(root.path, message)),
     currentVersion: () => checked(() => options.versioning.currentVersion(root.path)),
     listVersions: () => checked(() => options.versioning.listVersions(root.path)),
     readFileAtVersion: (tag, relativePath) =>
@@ -313,14 +306,13 @@ function createVersions(
 export function createForgeaxWorkspaceAdapter(
   options: ForgeaxWorkspaceAdapterOptions = {},
 ): WorkspaceAdapter {
-  const projectRoot = options.projectRoot ?? defaultProjectRoot();
-  const gamesRoot = resolve(projectRoot, '.forgeax', 'games');
+  const gamesRoot = resolve(options.projectRoot ?? defaultProjectRoot(), '.forgeax', 'games');
   return {
     async resolveGameRoot(gameId): Promise<string> {
       assertGameId(gameId);
       const path = resolve(gamesRoot, gameId);
       try {
-        await openRoot(projectRoot, gamesRoot, gameId, false);
+        await openRoot(gamesRoot, gameId, false);
       } catch (error) {
         if (!missing(error) && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       }
@@ -333,14 +325,14 @@ export function createForgeaxWorkspaceAdapter(
       operation: (scope: ScopedGameRoot) => Promise<T>,
     ): Promise<T> {
       assertGameId(gameId);
-      const root = await openRoot(projectRoot, gamesRoot, gameId, scopeOptions.create);
+      const root = await openRoot(gamesRoot, gameId, scopeOptions.create);
       let isActive = true;
       const active = (): void => {
         if (!isActive) throw new Error('Scoped game-root authority is no longer active');
       };
       try {
         return await operation({
-          gameRoot: root.gameRoot,
+          gameRoot: root.path,
           files: createFiles(root, active),
           versions: createVersions(root, scopeOptions, active),
         });
