@@ -1,11 +1,9 @@
 import type {
   CurrentVersion as HostCurrentVersion,
-  GameCheckpoint,
   GameVersion,
   VersionAdapter,
 } from '@forgeax/workbench-host/contracts';
 import {
-  createCheckpoint,
   createVersion,
   currentVersion,
   ensureGameRepository,
@@ -46,10 +44,6 @@ export function createForgeaxVersionAdapter(): VersionAdapter {
         throw new Error('ForgeaX version creation returned no tag');
       }
       return findVersion(gameRoot, created.tag);
-    },
-
-    async createCheckpoint(gameRoot, message): Promise<GameCheckpoint> {
-      return createCheckpoint(gameRoot, message);
     },
 
     async currentVersion(gameRoot): Promise<HostCurrentVersion | null> {
