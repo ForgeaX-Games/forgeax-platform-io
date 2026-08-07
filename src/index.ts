@@ -12,7 +12,3 @@ export {
   createForgeaxWorkspaceAdapter,
   type ForgeaxWorkspaceAdapterOptions,
 } from './workbench/workspace-adapter';
-export {
-  resolveForgeaxGameProjection,
-  type ForgeaxGameProjection,
-} from './workbench/game-projection';
