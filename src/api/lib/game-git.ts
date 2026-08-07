@@ -8,12 +8,13 @@
 // checkout/rollback stay internal (not exposed by the router).
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 // Runtime state that must never enter a game version (agent sessions, logs,
 // caches, deps). Kept minimal + generic; games may add their own lines.
 const DEFAULT_IGNORES = ['sessions/', 'assets/.uploads/', '*.log', 'node_modules/', '.DS_Store'];
+const WORKBENCH_PACKAGE_PATHS = ['project.json', 'blueprint.json', 'assets/manifest.json'] as const;
 
 // Inline identity + no-gpg so commits/tags never depend on ambient git config
 // (fresh game repos have none; CI/desktop must not prompt or fail).
@@ -151,6 +152,67 @@ export function createVersion(dir: string, message?: string): CreatedVersion {
   if (staged || !head) git(dir, [...IDENTITY, 'commit', '-m', msg]); // commit iff there are changes / first commit
   git(dir, [...IDENTITY, 'tag', '-a', tag, '-m', msg]);
   return { tag, commitHash: git(dir, ['rev-parse', 'HEAD']) };
+}
+
+export interface CreatedCheckpoint {
+  commitHash: string;
+  message: string;
+  createdAt: string;
+  created: boolean;
+}
+
+/** Commit only the portable package files at HEAD without creating a vN tag. */
+export function createCheckpoint(dir: string, message: string): CreatedCheckpoint {
+  for (const relativePath of WORKBENCH_PACKAGE_PATHS) {
+    const path = resolve(dir, relativePath);
+    let details;
+    try {
+      details = lstatSync(path);
+    } catch {
+      throw new Error(`Workbench package file is required to create a checkpoint: ${path}`);
+    }
+    if (!details.isFile() || details.isSymbolicLink()) {
+      throw new Error(`Workbench package path must be a regular file: ${path}`);
+    }
+  }
+
+  ensureRepo(dir);
+  git(dir, ['add', '--', ...WORKBENCH_PACKAGE_PATHS]);
+  const checkpointMessage = message || 'Workbench checkpoint';
+  const head = hasHead(dir);
+  const staged = git(dir, [
+    'diff',
+    '--cached',
+    '--name-only',
+    '--',
+    ...WORKBENCH_PACKAGE_PATHS,
+  ]).length > 0;
+  if (head && !staged) {
+    const commitHash = git(dir, ['rev-parse', 'HEAD']);
+    return {
+      commitHash,
+      message: checkpointMessage,
+      createdAt: git(dir, ['show', '-s', '--format=%cI', commitHash]),
+      created: false,
+    };
+  }
+
+  git(dir, [
+    ...IDENTITY,
+    'commit',
+    '--only',
+    '-m',
+    checkpointMessage,
+    '--',
+    ...WORKBENCH_PACKAGE_PATHS,
+  ]);
+  const commitHash = git(dir, ['rev-parse', 'HEAD']);
+  return {
+    commitHash,
+    message: checkpointMessage,
+    createdAt: git(dir, ['show', '-s', '--format=%cI', commitHash]),
+    created: true,
+  };
 }
 
 export interface CurrentVersion {
