@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, mkdir, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { GameFileCapability, VersionAdapter } from '@forgeax/workbench-host/contracts';
@@ -28,12 +28,22 @@ describe('createForgeaxWorkspaceAdapter', () => {
     await workspace.withGameRoot('video-game', { create: true, versioning: versions }, async (scope) => {
       expect(scope.gameRoot).toBe(join(root, '.forgeax', 'games', 'video-game'));
       await scope.files.write('nested/data.json', new TextEncoder().encode('{"ok":true}\n'));
+      await scope.files.write('project.json', new TextEncoder().encode('{"title":"Video"}\n'));
+      await scope.files.write('blueprint.json', new TextEncoder().encode('{"scenes":[]}\n'));
+      await scope.files.write(
+        'assets/manifest.json',
+        new TextEncoder().encode('{"assets":[]}\n'),
+      );
       expect(await scope.files.list('nested')).toEqual(['data.json']);
       expect(new TextDecoder().decode(await scope.files.read('nested/data.json') ?? undefined))
         .toBe('{"ok":true}\n');
       await scope.versions.ensureRepository();
       const v1 = await scope.versions.createVersion('first');
       expect(v1.tag).toBe('v1');
+      await expect(scope.versions.createCheckpoint('tip')).resolves.toMatchObject({
+        commitHash: v1.commitHash,
+        created: false,
+      });
       retained = scope.files;
     });
 
@@ -60,6 +70,37 @@ describe('createForgeaxWorkspaceAdapter', () => {
     await mkdir(outside);
     await symlink(outside, join(games, 'linked-game'));
     await expect(workspace.resolveGameRoot('linked-game')).rejects.toThrow(/symbolic link/);
+  });
+
+  test('anchors a launcher-managed packages/games projection to its canonical target', async () => {
+    const root = await projectRoot();
+    const games = join(root, '.forgeax', 'games');
+    const source = join(root, 'packages', 'games', 'shared-game');
+    const outside = join(root, 'outside');
+    const link = join(games, 'shared-game');
+    await mkdir(source, { recursive: true });
+    await mkdir(outside);
+    await mkdir(games, { recursive: true });
+    await writeFile(join(source, 'project.json'), '{"source":"package"}\n');
+    await symlink(source, link);
+    const workspace = createForgeaxWorkspaceAdapter({ projectRoot: root });
+
+    expect(await workspace.resolveGameRoot('shared-game')).toBe(link);
+    await workspace.withGameRoot(
+      'shared-game',
+      { create: true, versioning: {} as VersionAdapter },
+      async ({ gameRoot, files }) => {
+        expect(gameRoot).toBe(link);
+        expect(new TextDecoder().decode(await files.read('project.json') ?? undefined))
+          .toBe('{"source":"package"}\n');
+        await unlink(link);
+        await symlink(outside, link);
+        await files.write('anchored.json', new TextEncoder().encode('{"ok":true}\n'));
+      },
+    );
+
+    expect(await Bun.file(join(source, 'anchored.json')).text()).toBe('{"ok":true}\n');
+    expect(await Bun.file(join(outside, 'anchored.json')).exists()).toBe(false);
   });
 
   test('serializes matching file locks', async () => {
