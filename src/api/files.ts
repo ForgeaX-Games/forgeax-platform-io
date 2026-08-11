@@ -109,6 +109,7 @@ export function createFilesRouter(backend: FileBackend = studioFileBackend()) {
     if (!abs) return c.json({ error: WHITELIST_ERROR }, 400);
     try {
       const buf = Buffer.from(body.data, 'base64');
+      await mkdir(dirname(abs), { recursive: true });
       await writeFile(abs, buf);
       return c.json({ path: body.path, bytes: buf.byteLength });
     } catch (e) {

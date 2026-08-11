@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { mkdtemp, mkdir, rm, stat } from 'fs/promises';
+import { mkdtemp, mkdir, readFile, rm, stat } from 'fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, basename, join } from 'node:path';
 import { createFilesRouter } from '../src/api/files';
@@ -83,5 +83,21 @@ describe('POST /api/files — mkdir branch', () => {
       body: JSON.stringify({ path: `${slug}/../outside.bin`, content: 'blocked' }),
     });
     expect(response.status).toBe(400);
+  });
+});
+
+describe('POST /api/files/upload', () => {
+  test('creates missing parent directories before writing binary assets', async () => {
+    const target = `${slug}/assets/e2e-import/model.glb`;
+    const bytes = Buffer.from('glTF-e2e');
+    const res = await router.request('/upload', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: target, data: bytes.toString('base64') }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ path: target, bytes: bytes.byteLength });
+    expect(await readFile(resolve(gameDir, 'assets', 'e2e-import', 'model.glb'))).toEqual(bytes);
   });
 });
