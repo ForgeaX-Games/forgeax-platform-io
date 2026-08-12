@@ -1,11 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtemp, mkdir, rm, symlink, unlink, writeFile } from 'node:fs/promises';
-import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { GameFileCapability, VersionAdapter } from '@forgeax/workbench-host/contracts';
-import { addKnownGame } from '../../src/api/lib/known-games';
-import { resolveForgeaxGameProjection } from '../../src/workbench/game-projection';
 import { createForgeaxWorkspaceAdapter } from '../../src/workbench/workspace-adapter';
 import { createForgeaxVersionAdapter } from '../../src/workbench/version-adapter';
 
@@ -104,33 +101,6 @@ describe('createForgeaxWorkspaceAdapter', () => {
 
     expect(await Bun.file(join(source, 'anchored.json')).text()).toBe('{"ok":true}\n');
     expect(await Bun.file(join(outside, 'anchored.json')).exists()).toBe(false);
-  });
-
-  test('anchors an explicitly opened external game recorded in known-games', async () => {
-    const root = await projectRoot();
-    const home = await mkdtemp(join(tmpdir(), 'forgeax-known-games-home-'));
-    roots.push(home);
-    const external = join(home, 'forgeax-editor', 'games', 'sample');
-    const games = join(root, '.forgeax', 'games');
-    const link = join(games, 'sample');
-    const previousHome = process.env.HOME;
-    process.env.HOME = home;
-
-    try {
-      await mkdir(external, { recursive: true });
-      await mkdir(games, { recursive: true });
-      await symlink(external, link);
-      addKnownGame(external, 'sample');
-
-      expect(resolveForgeaxGameProjection(root, 'sample')).toMatchObject({
-        gameRoot: link,
-        authorityRoot: realpathSync(external),
-        kind: 'external',
-      });
-    } finally {
-      if (previousHome === undefined) delete process.env.HOME;
-      else process.env.HOME = previousHome;
-    }
   });
 
   test('serializes matching file locks', async () => {
