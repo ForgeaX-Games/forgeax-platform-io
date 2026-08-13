@@ -101,3 +101,41 @@ describe('POST /api/files/upload', () => {
     expect(await readFile(resolve(gameDir, 'assets', 'e2e-import', 'model.glb'))).toEqual(bytes);
   });
 });
+
+describe('GET /api/files/raw — byte ranges', () => {
+  test('serves a satisfiable byte range as 206 for WebKit media playback', async () => {
+    const target = `${slug}/assets/avatar.mov`;
+    await Bun.write(resolve(gameDir, 'assets', 'avatar.mov'), '0123456789');
+
+    const response = await router.request(`/raw?path=${encodeURIComponent(target)}`, {
+      headers: { range: 'bytes=2-5' },
+    });
+
+    expect(response.status).toBe(206);
+    expect(response.headers.get('accept-ranges')).toBe('bytes');
+    expect(response.headers.get('content-range')).toBe('bytes 2-5/10');
+    expect(response.headers.get('content-length')).toBe('4');
+    expect(await response.text()).toBe('2345');
+  });
+
+  test('supports suffix ranges', async () => {
+    const target = `${slug}/assets/avatar.mov`;
+    const response = await router.request(`/raw?path=${encodeURIComponent(target)}`, {
+      headers: { range: 'bytes=-3' },
+    });
+
+    expect(response.status).toBe(206);
+    expect(response.headers.get('content-range')).toBe('bytes 7-9/10');
+    expect(await response.text()).toBe('789');
+  });
+
+  test('rejects an out-of-bounds range as 416', async () => {
+    const target = `${slug}/assets/avatar.mov`;
+    const response = await router.request(`/raw?path=${encodeURIComponent(target)}`, {
+      headers: { range: 'bytes=20-30' },
+    });
+
+    expect(response.status).toBe(416);
+    expect(response.headers.get('content-range')).toBe('bytes */10');
+  });
+});
