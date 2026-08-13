@@ -8,6 +8,34 @@ import { spawn } from 'node:child_process';
 import { readFileSafe, writeFileSafe, classify } from './lib/io';
 import { type FileBackend, studioFileBackend, WHITELIST_ERROR } from './lib/file-backend';
 
+function parseSingleByteRange(
+  header: string | undefined,
+  size: number,
+): { start: number; end: number } | null | 'unsatisfiable' {
+  if (!header) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match || (!match[1] && !match[2]) || size <= 0) return 'unsatisfiable';
+
+  if (!match[1]) {
+    const suffixLength = Number(match[2]);
+    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) return 'unsatisfiable';
+    return { start: Math.max(0, size - suffixLength), end: size - 1 };
+  }
+
+  const start = Number(match[1]);
+  const requestedEnd = match[2] ? Number(match[2]) : size - 1;
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(requestedEnd) ||
+    start < 0 ||
+    start >= size ||
+    requestedEnd < start
+  ) {
+    return 'unsatisfiable';
+  }
+  return { start, end: Math.min(requestedEnd, size - 1) };
+}
+
 interface WriteBody {
   path?: unknown;
   content?: unknown;
@@ -137,17 +165,33 @@ export function createFilesRouter(backend: FileBackend = studioFileBackend()) {
       return c.json({ error: 'is a directory — use GET /api/files/tree?root=<path>' }, 400);
     }
     const { mime } = classify(rel);
+    const range = parseSingleByteRange(c.req.header('range'), s.size);
+    if (range === 'unsatisfiable') {
+      return new Response(null, {
+        status: 416,
+        headers: {
+          'Content-Range': `bytes */${s.size}`,
+          'Accept-Ranges': 'bytes',
+        },
+      });
+    }
     // 流式回传文件字节(createReadStream → WHATWG ReadableStream),Bun/Node 双跑。
-    const body = Readable.toWeb(createReadStream(abs)) as unknown as ReadableStream;
+    // Safari/WKWebView 对 QuickTime/HEVC 等媒体会先发 Range 请求；不返回 206
+    // 会导致系统解码器拒绝播放，即使文件本身是有效的 HEVC-with-alpha。
+    const body = Readable.toWeb(createReadStream(abs, range ?? undefined)) as unknown as ReadableStream;
     // 媒体资源 (video/* / image/* / audio/*) 走轻量级缓存: 5 分钟内同 url 切换
     // 直接吃浏览器 disk cache, 不走 HTTP. ADR-0019 头像状态机切 state 时多次拉
     // 同一批 webm, no-cache 会让每次切换都打一次 HTTP → 视觉空白窗.
     // 文本/JSON 等仍 no-cache (热重载/编辑场景需要立即看到新内容).
     const isMedia = mime.startsWith('video/') || mime.startsWith('image/') || mime.startsWith('audio/');
+    const contentLength = range ? range.end - range.start + 1 : s.size;
     return new Response(body, {
+      status: range ? 206 : 200,
       headers: {
         'Content-Type': mime,
-        'Content-Length': String(s.size),
+        'Content-Length': String(contentLength),
+        'Accept-Ranges': 'bytes',
+        ...(range ? { 'Content-Range': `bytes ${range.start}-${range.end}/${s.size}` } : {}),
         'Cache-Control': isMedia ? 'public, max-age=300' : 'no-cache',
       },
     });
