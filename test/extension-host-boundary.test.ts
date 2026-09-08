@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 const packageRoot = join(import.meta.dir, '..');
 const allowedHostImports = new Set([
-  '@forgeax/workbench-host/contracts',
-  '@forgeax/workbench-host/game-host',
+  '@forgeax/extension-host/contracts',
+  '@forgeax/extension-host/game-host',
 ]);
 
 function sourceFiles(dir: string): string[] {
@@ -17,16 +17,18 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-describe('workbench host dependency boundary', () => {
-  test('pins the shared host release exactly', () => {
+describe('extension host dependency boundary', () => {
+  test('declares the shared host only through the Extension Host identity', () => {
     const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'));
-    expect(manifest.dependencies?.['@forgeax/workbench-host']).toBe('0.2.6');
+    const retiredHostPackage = ['@forgeax', ['work', 'bench'].join('') + '-host'].join('/');
+    expect(manifest.dependencies?.['@forgeax/extension-host']).toBe('0.3.2');
+    expect(manifest.dependencies?.[retiredHostPackage]).toBeUndefined();
   });
 
   test('imports only contracts and game-host subpaths', () => {
     const violations = sourceFiles(join(packageRoot, 'src')).flatMap((file) => {
       const source = readFileSync(file, 'utf8');
-      return [...source.matchAll(/(?:from\s+|import\s*\(\s*)['"](@forgeax\/workbench-host[^'"]*)['"]/g)]
+      return [...source.matchAll(/(?:from\s+|import\s*\(\s*)['"](@forgeax\/extension-host[^'"]*)['"]/g)]
         .map((match) => match[1])
         .filter((specifier) => !allowedHostImports.has(specifier))
         .map((specifier) => `${file}: ${specifier}`);

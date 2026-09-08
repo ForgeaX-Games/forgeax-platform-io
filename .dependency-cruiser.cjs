@@ -1,8 +1,8 @@
 /**
- * @forgeax/platform-io 是后端 L1 基建。L1 铁律:零上行依赖。
+ * @forgeax/platform-io 是可复用的后端 IO 基座。
  *
- * 禁止 import 任何 @forgeax/* 兄弟包(它若依赖 cli/server/types 等就不再是
- * 最通用的底座)。当前迁入文件只依赖 hono + node 内建,本规则把这条锁死。
+ * 除 @forgeax/extension-host/contracts 外，禁止 import 任何 @forgeax/* 兄弟包。
+ * 当前迁入文件只依赖 Host contracts、hono 与 node 内建，本规则把这条锁死。
  * 与 architecture/layer-model.ts 的 isAllowed(platform-io → 任何非 shared)
  * 同源:platform-io 是叶子,谁都能依赖它,它依赖谁都不行。
  *
@@ -12,13 +12,15 @@
 module.exports = {
   forbidden: [
     {
-      name: 'platform-io-no-forgeax-deps',
+      name: 'platform-io-only-shared-host-contracts',
       severity: 'error',
       comment:
-        '后端 L1 基建不得依赖任何 @forgeax/* 包(零上行)。它是最通用的底座,' +
-        '只能依赖第三方(hono)与 node 内建。',
+        '后端 IO 基座只能依赖 @forgeax/extension-host/contracts、第三方库与 node 内建。',
       from: { path: '^src/' },
-      to: { path: '^@forgeax/' },
+      to: {
+        path: '^@forgeax/',
+        pathNot: '^@forgeax/extension-host/contracts$',
+      },
     },
     {
       name: 'no-circular',

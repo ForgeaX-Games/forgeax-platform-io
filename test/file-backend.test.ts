@@ -45,6 +45,7 @@ describe('singleGameFileBackend — slug-rooted confinement', () => {
     { name: 'parent escape', input: `${slug}/../secret.txt` },
     { name: 'deep escape', input: `${slug}/scenes/../../secret.txt` },
     { name: 'null byte', input: `${slug}/forge\0.json` },
+    { name: 'project DDC read', input: `${slug}/.forgeax/ddc/v2/status.json` },
   ])('rejects $name → null (read & write)', ({ input }) => {
     const b = singleGameFileBackend(gameDir);
     expect(b.resolveRead(input)).toBeNull();
@@ -71,6 +72,12 @@ describe('singleGameFileBackend — slug-rooted confinement', () => {
     const res = await b.tree('other-game');
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.status).toBe(400);
+  });
+
+  test('does not expose project DDC files through the authored file API', () => {
+    const b = singleGameFileBackend(gameDir);
+    expect(b.resolveRead(`${slug}/.forgeax/ddc/v2/heads/entity.json`)).toBeNull();
+    expect(b.resolveWrite(`${slug}/.forgeax/ddc/v2/heads/entity.json`)).toBeNull();
   });
 });
 

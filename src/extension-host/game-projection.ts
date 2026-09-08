@@ -21,7 +21,7 @@ function directChild(parent: string, child: string): boolean {
 
 /**
  * Resolve the one supported game layout shared by the launcher, server and
- * Workbench IO authority: a direct `.forgeax/games` child, a same-name
+ * Extension IO authority: a direct `.forgeax/games` child, a same-name
  * projection of `packages/games/<gameId>`, or an explicitly opened external
  * game recorded in known-games.json.
  */
@@ -47,7 +47,7 @@ export function resolveForgeaxGameProjection(
       // The optional forgeax-games floating checkout is commonly absent.
     }
 
-    // `/api/workbench/games/link` intentionally accepts consumer-owned games
+    // `/api/extension/games/link` intentionally accepts consumer-owned games
     // outside Studio's optional packages/games checkout (for example the
     // editor-owned `packages/editor/games/sample`). The link is the explicit
     // authority grant; do not accept arbitrary symlinks merely because they

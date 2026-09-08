@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { dirname, resolve, basename } from 'node:path';
 import { existsSync } from 'node:fs';
-import { mkdir, rename, rm, stat, unlink, writeFile } from 'fs/promises';
+import { mkdir, open, rename, rm, stat, unlink, writeFile } from 'fs/promises';
 import { createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { spawn } from 'node:child_process';
@@ -175,25 +175,49 @@ export function createFilesRouter(backend: FileBackend = studioFileBackend()) {
         },
       });
     }
-    // 流式回传文件字节(createReadStream → WHATWG ReadableStream),Bun/Node 双跑。
-    // Safari/WKWebView 对 QuickTime/HEVC 等媒体会先发 Range 请求；不返回 206
-    // 会导致系统解码器拒绝播放，即使文件本身是有效的 HEVC-with-alpha。
-    const body = Readable.toWeb(createReadStream(abs, range ?? undefined)) as unknown as ReadableStream;
     // 媒体资源 (video/* / image/* / audio/*) 走轻量级缓存: 5 分钟内同 url 切换
     // 直接吃浏览器 disk cache, 不走 HTTP. ADR-0019 头像状态机切 state 时多次拉
     // 同一批 webm, no-cache 会让每次切换都打一次 HTTP → 视觉空白窗.
     // 文本/JSON 等仍 no-cache (热重载/编辑场景需要立即看到新内容).
     const isMedia = mime.startsWith('video/') || mime.startsWith('image/') || mime.startsWith('audio/');
     const contentLength = range ? range.end - range.start + 1 : s.size;
+    const responseHeaders = {
+      'Content-Type': mime,
+      'Content-Length': String(contentLength),
+      'Accept-Ranges': 'bytes',
+      ...(range ? { 'Content-Range': `bytes ${range.start}-${range.end}/${s.size}` } : {}),
+      'Cache-Control': isMedia ? 'public, max-age=300' : 'no-cache',
+    } as Record<string, string>;
+    // 小 Range (≤1MB) 用一次有界读入内存返回, 不走 createReadStream 流式管道。
+    // 媒体探测 (Safari/WKWebView 的 bytes=0-3 探测、头像状态机切片) 全是小片段。
+    // 流式管道有一个 Windows 特有的挂死路径: 文件首开被杀毒软件占用 (EBUSY/
+    // EPERM) 时, Readable.toWeb 转换的流在 Bun 的 Response 管道中不把错误传给
+    // 客户端 —— 206 headers 已发出, body 永远挂起, 客户端只能等超时。有界读把
+    // 这类错误变成普通的 5xx 响应, 客户端可以立即重试。
+    if (range && contentLength <= 1_048_576) {
+      try {
+        const handle = await open(abs, 'r');
+        try {
+          const buffer = Buffer.alloc(contentLength);
+          const { bytesRead } = await handle.read(buffer, 0, contentLength, range.start);
+          if (bytesRead !== contentLength) {
+            return c.json({ error: 'file changed while reading the requested range' }, 500);
+          }
+          return new Response(new Uint8Array(buffer), { status: 206, headers: responseHeaders });
+        } finally {
+          await handle.close();
+        }
+      } catch (e) {
+        return c.json({ error: `failed to read file slice: ${(e as Error).message}` }, 500);
+      }
+    }
+    // 大 Range / 全量请求保持流式回传 (createReadStream → WHATWG ReadableStream),
+    // Bun/Node 双跑。Safari/WKWebView 对 QuickTime/HEVC 等媒体会先发 Range 请求；
+    // 不返回 206 会导致系统解码器拒绝播放，即使文件本身是有效的 HEVC-with-alpha。
+    const body = Readable.toWeb(createReadStream(abs, range ?? undefined)) as unknown as ReadableStream;
     return new Response(body, {
       status: range ? 206 : 200,
-      headers: {
-        'Content-Type': mime,
-        'Content-Length': String(contentLength),
-        'Accept-Ranges': 'bytes',
-        ...(range ? { 'Content-Range': `bytes ${range.start}-${range.end}/${s.size}` } : {}),
-        'Cache-Control': isMedia ? 'public, max-age=300' : 'no-cache',
-      },
+      headers: responseHeaders,
     });
   });
 

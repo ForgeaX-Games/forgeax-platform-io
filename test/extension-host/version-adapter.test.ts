@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createForgeaxVersionAdapter } from '../../src/workbench/version-adapter';
+import { createForgeaxVersionAdapter } from '../../src/extension-host/version-adapter';
 
 const roots: string[] = [];
 

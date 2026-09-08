@@ -113,12 +113,11 @@ function fromLiveGit(): VersionInfo | null {
   // Dev mode fallback — query git directly. Must be cheap (cached on first call).
   // Scoped to the studio monorepo root, not packages/server. We walk up until
   // .gitmodules sits beside .git/ — that's forgeax-studio root.
+  const dir = findStudioRoot();
+  // A desktop payload is not a source checkout. Do not spawn synchronous Git
+  // commands from the last ancestor on every version poll when discovery fails.
+  if (!dir) return null;
   try {
-    let dir = process.cwd();
-    for (let i = 0; i < 8; i++) {
-      if (existsSync(resolve(dir, '.gitmodules')) && existsSync(resolve(dir, '.git'))) break;
-      dir = resolve(dir, '..');
-    }
     const run = (cmd: string): string =>
       execSync(cmd, { cwd: dir, encoding: 'utf-8' }).trim();
     const sha = run('git log -1 --pretty=format:%h HEAD');
@@ -172,12 +171,9 @@ export interface VersionTag {
 
 /** List the studio repo's `vN` release tags (newest first). Empty on failure. */
 export function getVersionTags(): VersionTag[] {
+  const dir = findStudioRoot();
+  if (!dir) return [];
   try {
-    let dir = process.cwd();
-    for (let i = 0; i < 8; i++) {
-      if (existsSync(resolve(dir, '.gitmodules')) && existsSync(resolve(dir, '.git'))) break;
-      dir = resolve(dir, '..');
-    }
     const out = execSync(
       "git for-each-ref refs/tags/v* --sort=-creatordate --format='%(refname:short)\t%(creatordate:short)\t%(subject)'",
       { cwd: dir, encoding: 'utf-8' },

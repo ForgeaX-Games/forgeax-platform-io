@@ -14,7 +14,7 @@ import { resolve } from 'node:path';
 // Runtime state that must never enter a game version (agent sessions, logs,
 // caches, deps). Kept minimal + generic; games may add their own lines.
 const DEFAULT_IGNORES = ['sessions/', 'assets/.uploads/', '*.log', 'node_modules/', '.DS_Store'];
-const WORKBENCH_PACKAGE_PATHS = ['project.json', 'blueprint.json', 'assets/manifest.json'] as const;
+const PROJECT_CHECKPOINT_PATHS = ['project.json', 'blueprint.json', 'assets/manifest.json'] as const;
 
 // Inline identity + no-gpg so commits/tags never depend on ambient git config
 // (fresh game repos have none; CI/desktop must not prompt or fail).
@@ -163,29 +163,29 @@ export interface CreatedCheckpoint {
 
 /** Commit only the portable package files at HEAD without creating a vN tag. */
 export function createCheckpoint(dir: string, message: string): CreatedCheckpoint {
-  for (const relativePath of WORKBENCH_PACKAGE_PATHS) {
+  for (const relativePath of PROJECT_CHECKPOINT_PATHS) {
     const path = resolve(dir, relativePath);
     let details;
     try {
       details = lstatSync(path);
     } catch {
-      throw new Error(`Workbench package file is required to create a checkpoint: ${path}`);
+      throw new Error(`Project package file is required to create a checkpoint: ${path}`);
     }
     if (!details.isFile() || details.isSymbolicLink()) {
-      throw new Error(`Workbench package path must be a regular file: ${path}`);
+      throw new Error(`Project package path must be a regular file: ${path}`);
     }
   }
 
   ensureRepo(dir);
-  git(dir, ['add', '--', ...WORKBENCH_PACKAGE_PATHS]);
-  const checkpointMessage = message || 'Workbench checkpoint';
+  git(dir, ['add', '--', ...PROJECT_CHECKPOINT_PATHS]);
+  const checkpointMessage = message || 'Project checkpoint';
   const head = hasHead(dir);
   const staged = git(dir, [
     'diff',
     '--cached',
     '--name-only',
     '--',
-    ...WORKBENCH_PACKAGE_PATHS,
+    ...PROJECT_CHECKPOINT_PATHS,
   ]).length > 0;
   if (head && !staged) {
     const commitHash = git(dir, ['rev-parse', 'HEAD']);
@@ -204,7 +204,7 @@ export function createCheckpoint(dir: string, message: string): CreatedCheckpoin
     '-m',
     checkpointMessage,
     '--',
-    ...WORKBENCH_PACKAGE_PATHS,
+    ...PROJECT_CHECKPOINT_PATHS,
   ]);
   const commitHash = git(dir, ['rev-parse', 'HEAD']);
   return {

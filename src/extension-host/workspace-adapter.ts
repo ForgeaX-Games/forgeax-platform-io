@@ -18,7 +18,7 @@ import type {
   OpenGameRootOptions,
   ScopedGameRoot,
   WorkspaceAdapter,
-} from '@forgeax/workbench-host/contracts';
+} from '@forgeax/extension-host/contracts';
 import { defaultProjectRoot } from '../api/lib/safe-path';
 import { resolveForgeaxGameProjection } from './game-projection';
 
@@ -177,7 +177,7 @@ async function withKeys<T>(
 ): Promise<T> {
   const normalized = [...new Set(keys)].sort();
   if (normalized.length === 0 || normalized.some((key) => !key || key.includes('\0'))) {
-    throw new TypeError('Workbench lock keys must be non-empty strings');
+    throw new TypeError('Extension lock keys must be non-empty strings');
   }
   const inherited = heldLocks.getStore() ?? new Set<string>();
   const identities = normalized.map((key) => `${root.realPath}\0${key}`);

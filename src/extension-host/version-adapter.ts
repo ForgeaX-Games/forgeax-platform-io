@@ -3,7 +3,7 @@ import type {
   GameCheckpoint,
   GameVersion,
   VersionAdapter,
-} from '@forgeax/workbench-host/contracts';
+} from '@forgeax/extension-host/contracts';
 import {
   createCheckpoint,
   createVersion,
@@ -17,8 +17,8 @@ function toIsoTime(seconds: number): string {
   return new Date(seconds * 1000).toISOString();
 }
 
-function findVersion(gameRoot: string, tag: string): GameVersion {
-  const entry = listVersions(gameRoot).find((version) => version.tag === tag);
+async function findVersion(gameRoot: string, tag: string): Promise<GameVersion> {
+  const entry = (await listVersions(gameRoot)).find((version) => version.tag === tag);
   if (!entry) {
     throw new Error(`Created version ${tag} was not found`);
   }
@@ -37,11 +37,11 @@ function findVersion(gameRoot: string, tag: string): GameVersion {
 export function createForgeaxVersionAdapter(): VersionAdapter {
   return {
     async ensureRepository(gameRoot): Promise<void> {
-      ensureGameRepository(gameRoot);
+      await ensureGameRepository(gameRoot);
     },
 
     async createVersion(gameRoot, message): Promise<GameVersion> {
-      const created = createVersion(gameRoot, message);
+      const created = await createVersion(gameRoot, message);
       if (!created.tag) {
         throw new Error('ForgeaX version creation returned no tag');
       }
@@ -53,7 +53,7 @@ export function createForgeaxVersionAdapter(): VersionAdapter {
     },
 
     async currentVersion(gameRoot): Promise<HostCurrentVersion | null> {
-      const current = currentVersion(gameRoot);
+      const current = await currentVersion(gameRoot);
       if (!current.tag || !current.commitHash) return null;
       return {
         tag: current.tag,
@@ -63,7 +63,7 @@ export function createForgeaxVersionAdapter(): VersionAdapter {
     },
 
     async listVersions(gameRoot): Promise<GameVersion[]> {
-      return listVersions(gameRoot).map((version) => ({
+      return (await listVersions(gameRoot)).map((version) => ({
         tag: version.tag,
         commitHash: version.commitHash,
         message: version.message,

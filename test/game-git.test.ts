@@ -12,7 +12,7 @@ afterEach(() => {
 });
 
 describe('game Git isolation', () => {
-  test('ignores inherited hooks and tag signing requirements', () => {
+  test('ignores inherited hooks and tag signing requirements', async () => {
     const root = mkdtempSync(join(tmpdir(), 'forgeax-game-git-hooks-'));
     roots.push(root);
     const game = join(root, 'game');
@@ -36,7 +36,7 @@ describe('game Git isolation', () => {
     process.env.GIT_CONFIG_GLOBAL = globalConfig;
     process.env.FORGEAX_TEST_HOOK_MARKER = marker;
     try {
-      expect(createVersion(game)).toMatchObject({ tag: 'v1' });
+      expect(await createVersion(game)).toMatchObject({ tag: 'v1' });
       expect(existsSync(marker)).toBe(false);
     } finally {
       if (previousGlobalConfig === undefined) delete process.env.GIT_CONFIG_GLOBAL;

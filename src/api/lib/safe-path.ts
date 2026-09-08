@@ -14,7 +14,7 @@ const ALLOWED_PREFIXES: readonly string[][] = [
   ['games'],            // legacy / release-side relative paths (pre-refactor)
   ['packages'],
   ['.forgeax', 'games'], // instance-local runtime games (canonical going forward)
-  ['.forgeax', 'user'],  // global user profile (USER.md) — surfaced/edited in Workbench
+  ['.forgeax', 'user'],  // global user profile (USER.md) — surfaced in Settings
 ];
 
 // Kept exported for callers that just want the top-level summary. Each

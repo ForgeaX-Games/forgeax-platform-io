@@ -7,12 +7,12 @@
 export * from './routers';
 export * from './tools';
 export * from './resource-substrate';
-export { createForgeaxVersionAdapter } from './workbench/version-adapter';
+export { createForgeaxVersionAdapter } from './extension-host/version-adapter';
 export {
   createForgeaxWorkspaceAdapter,
   type ForgeaxWorkspaceAdapterOptions,
-} from './workbench/workspace-adapter';
+} from './extension-host/workspace-adapter';
 export {
   resolveForgeaxGameProjection,
   type ForgeaxGameProjection,
-} from './workbench/game-projection';
+} from './extension-host/game-projection';

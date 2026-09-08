@@ -69,7 +69,7 @@ export function assetRoot(): string {
   return cached;
 }
 
-/** Path under a marketplace extension, e.g. mp('wb-character', 'dist'). */
+/** Path under a marketplace extension, e.g. mp('character', 'dist'). */
 export function mp(...segments: string[]): string {
   return resolve(assetRoot(), 'marketplace', 'extensions', ...segments);
 }

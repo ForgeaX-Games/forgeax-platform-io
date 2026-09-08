@@ -41,7 +41,7 @@ export interface GamePackageClassification { state: GamePackageState; missing: s
 
 export class GamePackageValidationError extends Error {}
 
-/** wb-game-video initialization contract shared by empty and pre-populated blueprints. */
+/** video-game initialization contract shared by empty and pre-populated blueprints. */
 export function validateVideoGameSeed(input: WritePackageInput): void {
   if (!isAssetManifest(input.assetsManifest)) {
     throw new GamePackageValidationError('video game seed manifest must be version 2');
@@ -119,7 +119,7 @@ export function defaultProject(slug: string): Record<string, unknown> {
   return {
     id: slug,
     title: slug,
-    platform: 'wb-game-video',
+    platform: 'video-game',
     platformVersion: '1',
     entry: { blueprint: 'blueprint.json', components: 'dist/components' },
   };

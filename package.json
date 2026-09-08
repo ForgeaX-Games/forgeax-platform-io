@@ -1,9 +1,10 @@
 {
+  "packageManager": "bun@1.4.0",
   "name": "@forgeax/platform-io",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "后端 L1 平台 IO 基建:files/assets/projects/fs/logs/prefs/version/changelog/boot-splash 等纯 IO router + safe-path/io/asset-root 工具。零 agent/session/llm 依赖,可被 cli(后L2)/server(后L3)/editor(前L2)直接复用。R1 从 @forgeax/orchestrator 抽出。",
+  "description": "可复用的后端 IO 基座：提供 files/assets/projects/fs/logs/prefs/version/changelog/boot-splash router，以及 safe-path/io/asset-root 工具。",
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
@@ -12,10 +13,11 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
+    "test:version-control": "bun test test/files-router.test.ts test/file-backend.test.ts test/file-io.test.ts test/safe-path.test.ts test/friendly-path.test.ts test/version-control-executable.test.ts test/version-control-root.test.ts test/version-control-status.test.ts test/version-control-init.test.ts test/version-control-graph.test.ts test/version-control-recovery.test.ts test/version-control-publish.test.ts test/version-control-security.test.ts test/version-control-route.test.ts test/game-host-router.test.ts test/game-version-control.test.ts test/game-version-control-security.test.ts test/version-control-scale.test.ts",
     "lint:boundaries": "depcruise --config .dependency-cruiser.cjs src"
   },
   "dependencies": {
-    "@forgeax/workbench-host": "0.2.6",
+    "@forgeax/extension-host": "0.3.2",
     "hono": "^4.6.0"
   },
   "devDependencies": {

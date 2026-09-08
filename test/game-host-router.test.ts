@@ -14,7 +14,7 @@ let router: ReturnType<typeof createGameHostRouter>;
 const SLUG = 'my-video-game';
 
 const sampleBlueprint = {
-  version: 'wb-game-video.graph.v1',
+  version: 'video-game.graph.v1',
   manifest: { mainPackId: 'main', packs: { main: { id: 'main', title: 'x', entry: 'a', graph: { nodes: [], edges: [] } } } },
   graph: { nodes: [], edges: [] },
 };
@@ -43,7 +43,7 @@ const canonicalSeed = (): {
   blueprint: unknown;
   assetsManifest: { version: number; assets: Array<{ id: string; kind: string }> };
 } => ({
-  project: { id: 'init-game', title: 'init-game', platform: 'wb-game-video' },
+  project: { id: 'init-game', title: 'init-game', platform: 'video-game' },
   blueprint: {
     clips: canonicalAssetIds.slice(0, 30).map((ref) => ({ media: { kind: 'VIDEO', ref } })),
   },
@@ -100,7 +100,7 @@ describe('PUT/GET /games/:slug/package', () => {
   });
 
   test('caller-provided project + manifest are persisted verbatim', async () => {
-    const project = { id: SLUG, title: 'Custom', platform: 'wb-game-video', platformVersion: '1', entry: { blueprint: 'blueprint.json', components: 'dist/components' } };
+    const project = { id: SLUG, title: 'Custom', platform: 'video-game', platformVersion: '1', entry: { blueprint: 'blueprint.json', components: 'dist/components' } };
     const assetsManifest = {
       version: 2,
       assets: [{ id: 'clip1', url: 'https://cdn.example/clip1.mp4', kind: 'video' }],

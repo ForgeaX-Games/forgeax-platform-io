@@ -3,11 +3,11 @@ import { mkdtemp, mkdir, rm, symlink, unlink, writeFile } from 'node:fs/promises
 import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { GameFileCapability, VersionAdapter } from '@forgeax/workbench-host/contracts';
+import type { GameFileCapability, VersionAdapter } from '@forgeax/extension-host/contracts';
 import { addKnownGame } from '../../src/api/lib/known-games';
-import { resolveForgeaxGameProjection } from '../../src/workbench/game-projection';
-import { createForgeaxWorkspaceAdapter } from '../../src/workbench/workspace-adapter';
-import { createForgeaxVersionAdapter } from '../../src/workbench/version-adapter';
+import { resolveForgeaxGameProjection } from '../../src/extension-host/game-projection';
+import { createForgeaxWorkspaceAdapter } from '../../src/extension-host/workspace-adapter';
+import { createForgeaxVersionAdapter } from '../../src/extension-host/version-adapter';
 
 const roots: string[] = [];
 

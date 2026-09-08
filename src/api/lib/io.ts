@@ -79,7 +79,7 @@ export async function readFileSafe(absPath: string, rel: string): Promise<FileIn
   if (s.isDirectory()) throw new Error('is a directory — use GET /api/files/tree?root=<path>');
   const { kind, mime } = classify(rel);
   // Binary kinds: skip text decode (was producing the PNG-as-mojibake in
-  // the workbench preview). UI fetches bytes from /api/files/raw instead.
+  // an extension preview). UI fetches bytes from /api/files/raw instead.
   if (kind !== 'text') {
     return { path: rel, kind, mime, size: s.size, mtime: s.mtimeMs };
   }
@@ -114,6 +114,12 @@ export interface TreeNode {
 }
 
 const SKIP_NAMES = new Set(['node_modules', '.git', '.forgeax', 'dist', 'build', '.cache']);
+
+/** Authored APIs must not expose project-local derived DDC state. */
+export function isProjectDdcPath(rel: string): boolean {
+  const normalized = rel.replaceAll('\\', '/').replace(/^\/+|\/+$/g, '');
+  return normalized === '.forgeax/ddc' || normalized.startsWith('.forgeax/ddc/');
+}
 
 export async function listTree(
   root: string,

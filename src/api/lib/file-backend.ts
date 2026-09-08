@@ -1,16 +1,16 @@
 // file-backend.ts — the confinement seam for createFilesRouter (R6→R3).
 //
-// WHY THIS EXISTS (ideal-clean-architecture.md §5 "复用,不另写后端" + §1 SSOT):
+// WHY THIS EXISTS (ideal-clean-architecture.md §5 "reuse, do not duplicate backends" + §1 SSOT):
 //   The /api/files wire contract (GET/POST/DELETE { path, content } + /raw +
 //   /tree) is ONE backend. But WHERE those paths resolve on disk has two shapes:
 //
-//     - studio (cli 后L2 / server 后L3): root = FORGEAX_PROJECT_ROOT, whitelist
+//     - studio (cli backend L2 / server backend L3): root = FORGEAX_PROJECT_ROOT, whitelist
 //       games/** · packages/** · .forgeax/{games,user} — the multi-project host.
-//     - editor standalone (前L2): ONE game opened at an arbitrary `--game <dir>`,
+//     - editor standalone (frontend L2): ONE game opened at an arbitrary `--game <dir>`,
 //       addressed by a client-space `<slug>/<rel>` pointer, confined to that dir.
 //
 //   Before R3 the editor shipped a SECOND, hand-written read-only file backend in
-//   its vite middleware (a §5 violation: "为启动自写一个独立后端"). This seam lets
+//   its vite middleware (a §5 violation: "a separate backend written for startup"). This seam lets
 //   the editor REUSE this very router by injecting a different path resolver —
 //   one wire contract, two confinement strategies, zero duplicated tree-walk /
 //   read / write logic.
@@ -23,7 +23,7 @@ import { resolve, dirname, basename, sep } from 'node:path';
 import { existsSync } from 'node:fs';
 import { defaultProjectRoot, resolveSafePath, ALLOWED_TOP_DIRS } from './safe-path';
 import { assetRoot } from '../../lib/asset-root';
-import { listTree, type TreeNode } from './io';
+import { isProjectDdcPath, listTree, type TreeNode } from './io';
 
 /** Shared 400 body — kept identical to the pre-R3 studio handler for byte parity. */
 export const WHITELIST_ERROR = 'path outside whitelist (games/** or packages/**)';
@@ -110,6 +110,7 @@ export function singleGameFileBackend(gameDir: string): FileBackend {
     if (clientPath === slug) rel = '';
     else if (clientPath.startsWith(`${slug}/`)) rel = clientPath.slice(slug.length + 1);
     else return null; // not addressing this game
+    if (isProjectDdcPath(rel)) return null;
     const abs = resolve(dir, rel);
     if (abs !== dir && !abs.startsWith(dirWithSep)) return null; // traversal escape
     return abs;
