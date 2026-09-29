@@ -16,3 +16,4 @@ export {
   resolveForgeaxGameProjection,
   type ForgeaxGameProjection,
 } from './extension-host/game-projection';
+export * from './secure-store-fs';

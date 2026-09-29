@@ -2,4 +2,6 @@ node_modules/
 *.log
 .DS_Store
 dist/
+.tmp/
+/packages/secure-store-fs/native/
 .worktrees/

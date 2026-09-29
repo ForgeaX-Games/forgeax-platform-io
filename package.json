@@ -5,17 +5,42 @@
   "private": true,
   "type": "module",
   "description": "可复用的后端 IO 基座：提供 files/assets/projects/fs/logs/prefs/version/changelog/boot-splash router，以及 safe-path/io/asset-root 工具。",
+  "workspaces": [
+    "packages/*"
+  ],
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./secure-store-fs": "./src/secure-store-fs/index.ts",
+    "./secure-store-fs/client": "./src/secure-store-fs/client.ts",
+    "./secure-store-fs/protocol": "./src/secure-store-fs/protocol.ts",
+    "./secure-store-fs/artifact": "./scripts/secure-store-fs-artifact.mjs",
+    "./secure-store-fs/build": "./scripts/build-secure-store-fs.mjs",
     "./*": "./src/*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
+    "build": "node scripts/build-secure-store-fs.mjs --mode release --output dist/native/secure-store-fs",
+    "build:secure-store-fs": "node scripts/build-secure-store-fs.mjs --mode release --output dist/native/secure-store-fs",
+    "build:secure-store-fs:test": "node scripts/build-secure-store-fs.mjs --mode test --output .tmp/secure-store-fs-test",
+    "test:secure-store-fs": "bun test test/secure-store-fs-protocol.test.ts test/secure-store-fs-toctou.test.ts test/secure-store-fs-artifact.test.ts",
+    "check:secure-store-fs": "node scripts/secure-store-fs-diff-check.mjs",
+    "pack:check": "node scripts/secure-store-fs-pack-check.mjs",
     "test:version-control": "bun test test/files-router.test.ts test/file-backend.test.ts test/file-io.test.ts test/safe-path.test.ts test/friendly-path.test.ts test/version-control-executable.test.ts test/version-control-root.test.ts test/version-control-status.test.ts test/version-control-init.test.ts test/version-control-graph.test.ts test/version-control-recovery.test.ts test/version-control-publish.test.ts test/version-control-security.test.ts test/version-control-route.test.ts test/game-host-router.test.ts test/game-version-control.test.ts test/game-version-control-security.test.ts test/version-control-scale.test.ts",
     "lint:boundaries": "depcruise --config .dependency-cruiser.cjs src"
   },
+  "files": [
+    "src",
+    "packages/secure-store-fs/src",
+    "native/secure-store-fs",
+    "scripts/build-secure-store-fs.mjs",
+    "scripts/secure-store-fs-artifact.mjs",
+    "scripts/secure-store-fs-artifact.d.mts",
+    "scripts/secure-store-fs-diff-check.mjs",
+    "scripts/secure-store-fs-pack-check.mjs",
+    "dist/native/secure-store-fs"
+  ],
   "dependencies": {
     "@forgeax/extension-host": "0.3.2",
     "hono": "^4.6.0"

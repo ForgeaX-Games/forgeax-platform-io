@@ -15,9 +15,19 @@
         "typescript": "^5.6.3",
       },
     },
+    "packages/secure-store-fs": {
+      "name": "@forgeax/secure-store-fs",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "22.20.0",
+        "typescript": "5.9.3",
+      },
+    },
   },
   "packages": {
-    "@forgeax/extension-host": ["@forgeax/extension-host@0.3.2", "", { "dependencies": { "ajv": "^8.17.1", "zod": "^3.25.0" }, "peerDependencies": { "fastify": "^5.0.0", "hono": "^4.0.0", "react": "^19.0.0", "vite": "^6.0.0" }, "optionalPeers": ["fastify", "hono", "react", "vite"] }, "sha512-KaSVlu8JQjrzZhAkcqInZK3Dk3k7t6DZK+y09uC9mJzmBY3xAibQg/LqSGwTUt604k9P8OqbSdnXtD543CiIGg=="],
+    "@forgeax/extension-host": ["@forgeax/extension-host@0.3.2", "https://registry.npmjs.org/@forgeax/extension-host/-/extension-host-0.3.2.tgz", { "dependencies": { "ajv": "^8.17.1", "zod": "^3.25.0" }, "peerDependencies": { "fastify": "^5.0.0", "hono": "^4.0.0", "react": "^19.0.0", "vite": "^6.0.0" }, "optionalPeers": ["fastify", "hono", "react", "vite"] }, "sha512-KaSVlu8JQjrzZhAkcqInZK3Dk3k7t6DZK+y09uC9mJzmBY3xAibQg/LqSGwTUt604k9P8OqbSdnXtD543CiIGg=="],
+
+    "@forgeax/secure-store-fs": ["@forgeax/secure-store-fs@workspace:packages/secure-store-fs"],
 
     "@types/bun": ["@types/bun@1.3.14", "https://registry.npmjs.org/@types/bun/-/bun-1.3.14.tgz", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 

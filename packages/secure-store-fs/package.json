@@ -1,0 +1,35 @@
+{
+  "name": "@forgeax/secure-store-fs",
+  "version": "0.1.0",
+  "packageManager": "bun@1.4.0",
+  "description": "Prebuilt Node.js secure filesystem broker client.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ForgeaX-Games/forgeax-platform-io.git",
+    "directory": "packages/secure-store-fs"
+  },
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "native/secure-store-fs", "README.md"],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc && node scripts/normalize-exports.mjs",
+    "test": "node --test test/*.test.mjs",
+    "clean-consumer": "node scripts/clean-consumer.mjs",
+    "security:scan": "node scripts/security-scan.mjs",
+    "workflow:check": "node scripts/workflow-contract.mjs",
+    "pack:check": "node scripts/pack-check.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.0",
+    "typescript": "5.9.3"
+  },
+  "publishConfig": { "access": "public" }
+}
